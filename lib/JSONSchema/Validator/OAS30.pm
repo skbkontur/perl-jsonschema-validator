@@ -4,9 +4,10 @@ use strict;
 use warnings;
 use Carp 'croak';
 
+use JSONSchema::Validator::JSONPointer;
+use JSONSchema::Validator::Error 'error';
 use JSONSchema::Validator::Constraints::OAS30;
 use JSONSchema::Validator::URIResolver;
-
 use JSONSchema::Validator::Util 'json_decode';
 
 use parent 'JSONSchema::Validator::Draft4';
@@ -34,7 +35,8 @@ sub validate_schema {
     my ($self, $instance, %params) = @_;
 
     my $schema = $params{schema} || $self->schema;
-    my $path = $params{path} // '/';
+    my $instance_path = $params{instance_path} // '/';
+    my $schema_path = $params{schema_path} // '/';
     my $direction = $params{direction};
     my $scope = $params{scope};
 
@@ -47,10 +49,7 @@ sub validate_schema {
     push @{$self->scopes}, $scope if $scope;
 
     my ($errors, $warnings) = ([], []);
-    my $result = $self->_validate_schema($instance,
-        schema => $schema,
-        path => $path,
-        data => {
+    my $result = $self->_validate_schema($instance, $schema, $instance_path, $schema_path, {
             errors => $errors,
             warnings => $warnings,
             direction => $direction
@@ -63,15 +62,17 @@ sub validate_schema {
 }
 
 sub _schema_keys {
-    my ($self, $schema, $path, $data) = @_;
+    my ($self, $schema, $instance_path, $data) = @_;
+    # if ref exists other preperties MUST be ignored
+    return '$ref' if $schema->{'$ref'};
 
     return ('deprecated') if $schema->{deprecated} && !$self->validate_deprecated;
 
     if (grep { $_ eq 'discriminator' } keys %$schema) {
-        my $status = $data->{discriminator}{$path} // 'no';
-        return ('discriminator') if $status eq 'no';
+        my $status = $data->{discriminator}{$instance_path} // 0;
+        return ('discriminator') unless $status;
 
-        # status is "processing"
+        # status is 1
         return grep { $_ ne 'discriminator' } keys %$schema;
     }
 
@@ -83,7 +84,7 @@ sub validate_request {
 
     my $method = lc($params{method} or croak 'param "method" is required');
     my $openapi_path = $params{openapi_path} or croak 'param "openapi_path" is required';
-    
+
     my $get_user_param = $self->_wrap_params($params{parameters});
 
     my $user_body = $params{parameters}{body} // []; # [exists, content-type, value]
@@ -103,7 +104,7 @@ sub validate_request {
 
     my ($result, $context) = (1, {errors => [], warnings => [], direction => 'request'});
     if ($operation_ptr->xget('deprecated')) {
-        push @{$context->{warnings}}, "method $method of $openapi_path is deprecated";
+        push @{$context->{warnings}}, error(message => "method $method of $openapi_path is deprecated");
         return $result, $context->{errors}, $context->{warnings} unless $self->validate_deprecated;
     }
 
@@ -139,7 +140,7 @@ sub validate_response {
 
     my ($result, $context) = (1, {errors => [], warnings => [], direction => 'response'});
     if ($base_ptr->xget('deprecated')) {
-        push @{$context->{warnings}}, "method $method of $openapi_path is deprecated";
+        push @{$context->{warnings}}, error(message => "method $method of $openapi_path is deprecated");
         return $result, $context->{errors}, $context->{warnings} unless $self->validate_deprecated;
     }
 
@@ -150,7 +151,7 @@ sub validate_response {
     $status_ptr = $responses_ptr->xget('default') unless $status_ptr;
 
     unless ($status_ptr) {
-        push @{$context->{errors}}, "unspecified response with status code $http_status";
+        push @{$context->{errors}}, error(message => "unspecified response with status code $http_status");
         return 0, $context->{errors}, $context->{warnings};
     }
 
@@ -167,10 +168,10 @@ sub validate_response {
 
     ($r, my $errors, my $warnings) = $self->_validate_content($context, $status_ptr, $content_type, $data);
     unless ($r) {
-        push @{$context->{errors}}, map { 'response body: ' . $_ } @$errors;
-        push @{$context->{warnings}}, map { 'response body: ' . $_ } @$warnings;
+        push @{$context->{errors}}, error(message => 'response body error', context => $errors);
         $result = 0;
     }
+    push @{$context->{warnings}}, error(message => 'response body warning', context => $warnings) if @$warnings;
 
     return $result, $context->{errors}, $context->{warnings};
 }
@@ -189,15 +190,15 @@ sub _validate_body {
     unless ($exists) {
         my $required = $body_ptr->xget('required');
         if ($required) {
-            push @{$ctx->{errors}}, q{body is required};
+            push @{$ctx->{errors}}, error(message => q{body is required});
             return 0;
         }
         return 1;
     }
 
     my ($result, $errors, $warnings) = $self->_validate_content($ctx, $body_ptr, $content_type, $data);
-    push @{$ctx->{errors}}, map { 'request body: ' . $_ } @$errors;
-    push @{$ctx->{warnings}}, map { 'request body: ' . $_ } @$warnings;
+    push @{$ctx->{errors}}, error(message => 'request body error', context => $errors) if @$errors;
+    push @{$ctx->{warnings}}, error(message => 'request body warning', context => $warnings) if @$warnings;
     return $result;
 }
 
@@ -226,14 +227,14 @@ sub _validate_type_params {
 
         unless ($exists) {
             if ($data_ptr->xget('required')) {
-                push @{$ctx->{errors}}, qq{$type param "$param" is required};
+                push @{$ctx->{errors}}, error(message => qq{$type param "$param" is required});
                 $result = 0;
             }
             next;
         }
 
         if ($data_ptr->xget('deprecated')) {
-            push @{$ctx->{warnings}}, qq{$type param "$param" is deprecated};
+            push @{$ctx->{warnings}}, error(message => qq{$type param "$param" is deprecated});
             next unless $self->validate_deprecated;
         }
 
@@ -257,10 +258,10 @@ sub _validate_type_params {
             }
 
             unless ($r) {
-                push @{$ctx->{errors}}, map { qq{$type param "$param": } . $_ } @$errors;
-                push @{$ctx->{warnings}}, map { qq{$type param "$param": } . $_ } @$warnings;
+                push @{$ctx->{errors}}, error(message => qq{$type param "$param" has error}, context => $errors);
                 $result = 0;
             }
+            push @{$ctx->{warnings}}, error(message => qq{$type param "$param" has warning}, context => $warnings) if @$warnings;
         }
     }
 
@@ -360,8 +361,7 @@ sub json_pointer {
     return JSONSchema::Validator::JSONPointer->new(
         scope => $self->scope,
         value => $self->schema,
-        validator => $self,
-        using_id_with_ref => 0
+        validator => $self
     );
 }
 

@@ -11,11 +11,19 @@ use overload
     'bool' => sub { $_[0]->value },
     fallback => 1;
 
+our @ISA = 'Exporter';
+our @EXPORT_OK = qw(json_pointer);
+
+sub json_pointer {
+    return __PACKAGE__;
+}
+
 sub append {
-    my ($class, $path, $value) = @_;
+    my ($class, $path, @values) = @_;
+    my $suffix = join('/', map { $class->escape($_) } @values);
     return $path =~ m!/$!
-        ? $path . $class->escape($value)
-        : $path . '/' . $class->escape($value);
+        ? $path . $suffix
+        : $path . '/' . $suffix;
 }
 
 sub join {
@@ -40,8 +48,8 @@ sub unescape {
 sub new {
     my ($class, %params) = @_;
 
-    my ($scope, $value, $validator, $using_id_with_ref) = @params{qw/scope value validator using_id_with_ref/};
-    
+    my ($scope, $value, $validator) = @params{qw/scope value validator/};
+
     croak 'JSONPointer: scope is required' unless defined $scope;
     croak 'JSONPointer: validator is required' unless $validator;
 
@@ -50,8 +58,7 @@ sub new {
     my $self = {
         scope => $scope,
         value => $value,
-        validator => $validator,
-        using_id_with_ref => ($using_id_with_ref // 0)
+        validator => $validator
     };
 
     bless $self, $class;
@@ -60,23 +67,11 @@ sub new {
 }
 
 sub validator { shift->{validator} }
-sub using_id_with_ref { shift->{using_id_with_ref} }
 sub scope { shift->{scope} }
 sub value { shift->{value} }
 
-sub get {
-    # orig_pointer is string which is already urldecoded and utf8-decoded 
-    my ($self, $orig_pointer, %params) = @_;
-    return $self unless $orig_pointer;
-
-    my $throw_exception = $params{throw_exception} // 0;
-    
-    my $pointer = $orig_pointer;
-    croak "Invalid JSON Pointer $pointer" unless $pointer =~ s!^/!!;
-
-    my @parts = length $pointer
-                    ? map { $self->unescape($_) } split(/\//, $pointer, -1)
-                    : ('');
+sub xget {
+    my ($self, @parts) = @_;
 
     my $current_scope = $self->scope;
     my $current_value = $self->value;
@@ -87,7 +82,7 @@ sub get {
         ($current_scope, $current_value) = $self->validator->resolver->resolve($ref);
     }
 
-    if (ref $current_value eq 'HASH' && $self->using_id_with_ref) {
+    if (ref $current_value eq 'HASH' && $self->validator->using_id_with_ref) {
         my $id = $current_value->{$self->validator->ID};
         if ($id && !ref $id) {
             $current_scope = $current_scope
@@ -102,7 +97,6 @@ sub get {
         } elsif (ref $current_value eq 'ARRAY' && $part =~ m/^\d+$/ && scalar(@$current_value) > $part) {
             $current_value = $current_value->[$part];
         } else {
-            croak "Unresolvable JSON Pointer: $orig_pointer" if $throw_exception;
             $current_value = undef;
             last;
         }
@@ -113,7 +107,7 @@ sub get {
             ($current_scope, $current_value) = $self->validator->resolver->resolve($ref);
         }
 
-        if (ref $current_value eq 'HASH' && $self->using_id_with_ref) {
+        if (ref $current_value eq 'HASH' && $self->validator->using_id_with_ref) {
             my $id = $current_value->{$self->validator->ID};
             if ($id && !ref $id) {
                 $current_scope = $current_scope
@@ -126,14 +120,22 @@ sub get {
     return __PACKAGE__->new(
         value => $current_value,
         scope => $current_scope,
-        validator => $self->validator,
-        using_id_with_ref => $self->using_id_with_ref
+        validator => $self->validator
     )
 }
 
-sub xget {
-    my $self = shift;
-    return $self->get($self->join(@_));
+sub get {
+    # pointer is string which is already urldecoded and utf8-decoded
+    my ($self, $pointer) = @_;
+    return $self unless $pointer;
+
+    croak "Invalid JSON Pointer $pointer" unless $pointer =~ s!^/!!;
+
+    my @parts = length $pointer
+                    ? map { $self->unescape($_) } split(/\//, $pointer, -1)
+                    : ('');
+
+    return $self->xget(@parts);
 }
 
 sub keys {

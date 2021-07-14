@@ -23,13 +23,16 @@ my $SPECIFICATIONS = {
     'http://json-schema.org/draft-04/schema#' => 'Draft4'
 };
 
+my $KNOWN_SPECIFICATIONS = ['OAS30', 'Draft4'];
+
 sub new {
     my ($class, %params) = @_;
 
     my $resource = delete $params{resource};
     my $validate_resource = delete($params{validate_resource}) // 1;
     my $schema = delete $params{schema};
-    my $base_uri = delete($params{base_uri});
+    my $base_uri = delete $params{base_uri};
+    my $specification = delete $params{specification};
 
     $schema = resource_schema($resource, \%params) if !$schema && $resource;
     croak 'resource or schema must be specified' unless $schema;
@@ -39,7 +42,9 @@ sub new {
         croak "invalid schema: \n" . join "\n", @$errors unless $result;
     }
 
-    my $specification = schema_specification($schema);
+    $specification = schema_specification($schema) unless $specification;
+    ($specification) = grep { lc eq lc($specification // '') } @$KNOWN_SPECIFICATIONS;
+    croak 'unknown specification' unless $specification;
 
     my $validator_class = "JSONSchema::Validator::${specification}";
     croak "Unknown specification param $specification" unless eval "require $validator_class; 1";
@@ -107,7 +112,8 @@ sub schema_specification {
     my $schema = shift;
 
     my $id = $schema->{id} || $schema->{'$id'};
-    my $specification = $SPECIFICATIONS->{$id} if $id;
+    my $specification = undef;
+    $specification = $SPECIFICATIONS->{$id} if $id;
 
     if (!$id && $schema->{openapi}) {
         my @vers = split /\./, $schema->{openapi};

@@ -5,6 +5,8 @@ use warnings;
 use URI;
 use Carp 'croak';
 
+use JSONSchema::Validator::Error 'error';
+use JSONSchema::Validator::JSONPointer 'json_pointer';
 use JSONSchema::Validator::Constraints::Draft4;
 use JSONSchema::Validator::URIResolver;
 
@@ -23,7 +25,6 @@ sub new {
     my $self = {
         schema => $schema,
         errors => [],
-        append_errors => 1,
         scopes => [],
         using_id_with_ref => $using_id_with_ref
     };
@@ -41,8 +42,7 @@ sub new {
         base_uri => $base_uri,
         schema => $schema,
         scheme_handlers => $scheme_handlers,
-        user_agent_get => $user_agent_get,
-        using_id_with_ref => $using_id_with_ref
+        user_agent_get => $user_agent_get
     );
     $self->{resolver} = $resolver;
 
@@ -59,18 +59,12 @@ sub scope { shift->{scopes}[-1] }
 sub base_uri { shift->{base_uri} }
 sub using_id_with_ref { shift->{using_id_with_ref} }
 
-sub append_error {
-    my ($self, $errors, @messages) = @_;
-    return $self unless $self->{append_errors};
-    push @$errors, @messages;
-    return $self;
-}
-
 sub validate_schema {
     my ($self, $instance, %params) = @_;
 
     my $schema = $params{schema} || $self->schema;
-    my $path = $params{path} // '/';
+    my $instance_path = $params{instance_path} // '/';
+    my $schema_path = $params{schema_path} // '/';
     my $scope = $params{scope};
 
     croak 'No schema specified' unless $schema;
@@ -78,7 +72,7 @@ sub validate_schema {
     push @{$self->scopes}, $scope if $scope;
 
     my $errors = [];
-    my $result = $self->_validate_schema($instance, schema => $schema, path => $path, data => {errors => $errors});
+    my $result = $self->_validate_schema($instance, $schema, $instance_path, $schema_path, {errors => $errors});
 
     pop @{$self->scopes} if $scope;
 
@@ -86,14 +80,9 @@ sub validate_schema {
 }
 
 sub _validate_schema {
-    my ($self, $instance, %params) = @_;
-
-    my ($schema, $path, $data) = @params{qw/schema path data/};
+    my ($self, $instance, $schema, $instance_path, $schema_path, $data, %params) = @_;
 
     my $apply_scope = $params{apply_scope} // 1;
-
-    my $prev_append_errors = $self->{append_errors};
-    $self->{append_errors} = $params{append_errors} // $prev_append_errors;
 
     my $id = $schema->{$self->ID};
     if ($id && $apply_scope && $self->using_id_with_ref) {
@@ -102,35 +91,36 @@ sub _validate_schema {
         push @{$self->scopes}, $uri;
     }
 
-    # if ref exists other preperties MUST be ignored
-    my $ref = $schema->{'$ref'};
-    my $_schema = $ref ? {'ref' => $ref} : $schema;
-
-    my @schema_keys = $self->_schema_keys($_schema, $path, $data);
+    my @schema_keys = $self->_schema_keys($schema, $instance_path, $data);
 
     my $result = 1;
     for my $k (@schema_keys) {
-        my $v = $_schema->{$k};
-        next unless my $constraint = $self->constraints->can($k);
+        my $v = $schema->{$k};
+
+        my $method = $k eq '$ref' ? 'ref' : $k;
+        next unless my $constraint = $self->constraints->can($method);
+
+        my $spath = json_pointer->append($schema_path, $k);
+
         my $r = eval {
-            $self->constraints->$constraint($instance, $v, schema => $schema, path => $path, data => $data);
+            $self->constraints->$constraint($instance, $v, $schema, $instance_path, $spath, $data);
         };
-        if ($@) {
-            $result = 0;
-            $self->append_error($data->{errors}, "exception: $@");
-        }
+        push @{$data->{errors}}, error(
+                message => "exception: $@",
+                instance_path => $instance_path,
+                schema_path => $spath
+            ) if $@;
         $result = 0 unless $r;
     }
 
     pop @{$self->scopes} if $id && $apply_scope && $self->using_id_with_ref;
-
-    $self->{append_errors} = $prev_append_errors;
-
     return $result;
 }
 
 sub _schema_keys {
-    my ($self, $schema, $path, $data) = @_;
+    my ($self, $schema, $instance_path, $data) = @_;
+    # if ref exists other preperties MUST be ignored
+    return '$ref' if $schema->{'$ref'};
     return keys %$schema;
 }
 

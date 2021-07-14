@@ -7,17 +7,20 @@ use Carp 'croak';
 
 use parent 'JSONSchema::Validator::Constraints::Draft4';
 
+use JSONSchema::Validator::JSONPointer 'json_pointer';
+use JSONSchema::Validator::Error 'error';
 use JSONSchema::Validator::Util qw(is_type serialize unbool round detect_type);
 
 sub type {
-    my ($self, $instance, $type, %params) = @_;
+    my ($self, $instance, $type, $schema, $instance_path, $schema_path, $data) = @_;
 
     if (is_type($instance, 'null', $self->strict)) {
         return $self->nullable( $instance,
-                                $params{schema}{nullable} // 0,
-                                schema => $params{schema},
-                                path => $params{path},
-                                data => $params{data});
+                                $schema->{nullable} // 0,
+                                $schema,
+                                $instance_path,
+                                $schema_path,
+                                $data);
     }
 
     my $result = 1;
@@ -25,17 +28,21 @@ sub type {
 
     # # items must be present if type eq array
     # if ($result && $type eq 'array') {
-    #     $result = 0 unless exists $params{schema}{items};
+    #     $result = 0 unless exists $schema->{items};
     # }
 
     return 1 if $result;
 
-    $self->validator->append_error($params{data}{errors}, "type mismatch of instance $params{path}");
+    push @{$data->{errors}}, error(
+        message => 'type mismatch',
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub items {
-    my ($self, $instance, $items, %params) = @_;
+    my ($self, $instance, $items, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'array', $self->strict);
 
     # items is object and NOT array
@@ -43,73 +50,89 @@ sub items {
     my $result = 1;
     for my $i (0 .. $#{$instance}) {
         my $item = $instance->[$i];
-        my $path = JSONSchema::Validator::JSONPointer->append($params{path}, $i);
-        my $r = $self->validator->_validate_schema($item, schema => $items, path => $path, data => $params{data});
+        my $ipath = json_pointer->append($instance_path, $i);
+        my $r = $self->validator->_validate_schema($item, $items, $ipath, $schema_path, $data);
         $result = 0 unless $r;
     }
     return $result;
 }
 
 sub nullable {
-    my ($self, $instance, $nullable, %params) = @_;
+    my ($self, $instance, $nullable, $schema, $instance_path, $schema_path, $data) = @_;
     # A true value adds "null" to the allowed type specified by the type keyword, only if type is explicitly defined within the same Schema Object.
-    return 1 unless $params{schema}{type};
+    return 1 unless $schema->{type};
     return 1 if $nullable;
     unless (defined $instance) {
-        $self->validator->append_error($params{data}{errors}, "instance $params{path} is nullable");
+        push @{$data->{errors}}, error(
+            message => 'instance is nullable',
+            instance_path => $instance_path,
+            schema_path => $schema_path
+        );
         return 0;
     }
     return 1;
 }
 
 sub readOnly {
-    my ($self, $instance, $readOnly, %params) = @_;
+    my ($self, $instance, $readOnly, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless $readOnly;
-    return 1 if $params{data}{direction} eq 'response';
+    return 1 if $data->{direction} eq 'response';
 
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} is invalid in request because of readOnly property");
+    push @{$data->{errors}}, error(
+        message => 'instance is invalid in request because of readOnly property',
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub writeOnly {
-    my ($self, $instance, $writeOnly, %params) = @_;
+    my ($self, $instance, $writeOnly, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless $writeOnly;
-    return 1 if $params{data}{direction} eq 'request';
+    return 1 if $data->{direction} eq 'request';
 
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} is invalid in response because of writeOnly property");
+    push @{$data->{errors}}, error(
+        message => "instance is invalid in response because of writeOnly property",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub required {
-    my ($self, $instance, $required, %params) = @_;
+    my ($self, $instance, $required, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'object', $self->strict);
 
     my $result = 1;
-    for my $prop (@$required) {
+    for my $idx (0 .. $#{$required}) {
+        my $prop = $required->[$idx];
         next if exists $instance->{$prop};
 
-        if ($params{schema}{properties} && $params{schema}{properties}{$prop}) {
-            my $prop = $params{schema}{properties}{$prop};
+        if ($schema->{properties} && $schema->{properties}{$prop}) {
+            my $prop = $schema->{properties}{$prop};
             my $read_only = $prop->{readOnly} // 0;
             my $write_only = $prop->{writeOnly} // 0;
-            my $direction = $params{data}{direction};
+            my $direction = $data->{direction};
 
             next if $direction eq 'request' && $read_only;
             next if $direction eq 'response' && $write_only;
         }
 
-        $self->validator->append_error($params{data}{errors}, "instance $params{path} does not have required property $prop");
+        push @{$data->{errors}}, error(
+            message => qq{instance does not have required property "${prop}"},
+            instance_path => $instance_path,
+            schema_path => json_pointer->append($schema_path, $idx)
+        );
         $result = 0;
     }
     return $result;
 }
 
 sub discriminator {
-    my ($self, $instance, $discriminator, %params) = @_;
+    my ($self, $instance, $discriminator, $origin_schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'object', $self->strict);
 
-    my $path = $params{path};
-    my $status = $params{data}{discriminator}{$path} // 'no';
+    my $path = $instance_path;
 
     my $property_name = $discriminator->{propertyName};
     my $mapping = $discriminator->{mapping} // {};
@@ -119,8 +142,8 @@ sub discriminator {
 
     $ref = $self->__detect_discriminator_ref($ref || $type);
 
-    # status "processing" needs to prevent recursion
-    $params{data}{discriminator}{$path} = 'processing';
+    # status == 1 needs to prevent recursion
+    $data->{discriminator}{$path} = 1;
 
     my $scope = $self->validator->scope;
     $ref = URI->new($ref);
@@ -133,25 +156,33 @@ sub discriminator {
     push @{$self->validator->scopes}, $current_scope;
 
     my $result = eval {
-        $self->validator->_validate_schema($instance, schema => $schema, path => $params{path}, data => $params{data}, apply_scope => 0);
+        $self->validator->_validate_schema($instance, $schema, $instance_path, $schema_path, $data, apply_scope => 0);
     };
 
     if ($@) {
         $result = 0;
-        $self->validator->append_error($params{data}{errors}, "exception: $@");
+        push @{$data->{errors}}, error(
+            message => "exception: $@",
+            instance_path => $instance_path,
+            schema_path => $schema_path
+        );
     }
 
     pop @{$self->validator->scopes};
 
-    delete $params{data}{discriminator}{$path};
+    delete $data->{discriminator}{$path};
 
     return $result;
 }
 
 sub deprecated {
-    my ($self, $instance, $deprecated, %params) = @_;
+    my ($self, $instance, $deprecated, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless $deprecated;
-    $self->validator->append_error($params{data}{warnings}, "instance $params{path} is deprecated");
+    push @{$data->{warnings}}, error(
+        message => 'instance is deprecated',
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 1;
 }
 

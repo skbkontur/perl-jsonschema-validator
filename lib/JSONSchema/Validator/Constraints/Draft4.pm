@@ -6,7 +6,8 @@ use Scalar::Util 'weaken';
 use URI;
 use Carp 'croak';
 
-use JSONSchema::Validator::JSONPointer;
+use JSONSchema::Validator::Error 'error';
+use JSONSchema::Validator::JSONPointer 'json_pointer';
 use JSONSchema::Validator::Util qw(serialize unbool round is_type detect_type);
 use JSONSchema::Validator::Format qw(
     validate_date_time validate_date validate_time
@@ -52,7 +53,7 @@ use constant EPSILON => 1e-7;
 
 sub new {
     my ($class, %params) = @_;
-    
+
     my $validator = $params{validator} or croak 'validator is required';
     my $strict = $params{strict} // 1;
 
@@ -73,93 +74,131 @@ sub validator { shift->{validator} }
 sub strict { shift->{strict} }
 
 sub type {
-    my ($self, $instance, $types, %params) = @_;
+    my ($self, $instance, $types, $schema, $instance_path, $schema_path, $data) = @_;
     my @types = ref $types ? @$types : ($types);
 
     return 1 if grep { is_type($instance, $_, $self->strict) } @types;
 
-    $self->validator->append_error($params{data}{errors}, "type mismatch of instance $params{path}");
+    push @{$data->{errors}}, error(
+        message => "type mismatch",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub minimum {
-    my ($self, $instance, $minimum, %params) = @_;
+    my ($self, $instance, $minimum, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'number', $self->strict);
     return 1 if $instance >= $minimum;
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} is less than minimum of $minimum");
+    push @{$data->{errors}}, error(
+        message => "${instance} is less than ${minimum}",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub maximum {
-    my ($self, $instance, $maximum, %params) = @_;
+    my ($self, $instance, $maximum, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'number', $self->strict);
     return 1 if $instance <= $maximum;
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} is greater than maximum of $maximum");
+    push @{$data->{errors}}, error(
+        message => "${instance} is greater than ${maximum}",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub exclusiveMaximum {
-    my ($self, $instance, $exclusiveMaximum, %params) = @_;
+    my ($self, $instance, $exclusiveMaximum, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'number', $self->strict);
-    my $maximum = $params{schema}{maximum};
+    my $maximum = $schema->{maximum};
 
-    my $res = $self->maximum($instance, $maximum, %params);
+    my $res = $self->maximum($instance, $maximum, $schema, $instance_path, $schema_path, $data);
     return 0 unless $res;
+
     return 1 unless $exclusiveMaximum;
     return 1 if $instance != $maximum;
 
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} is equal to $maximum");
+    push @{$data->{errors}}, error(
+        message => "${instance} is equal to ${maximum}",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub exclusiveMinimum {
-    my ($self, $instance, $exclusiveMinimum, %params) = @_;
+    my ($self, $instance, $exclusiveMinimum, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'number', $self->strict);
-    my $minimum = $params{schema}{minimum};
+    my $minimum = $schema->{minimum};
 
-    my $res = $self->minimum($instance, $minimum, %params);
+    my $res = $self->minimum($instance, $minimum, $schema, $instance_path, $schema_path, $data);
     return 0 unless $res;
+
     return 1 unless $exclusiveMinimum;
     return 1 if $instance != $minimum;
 
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} is equal to $minimum");
+    push @{$data->{errors}}, error(
+        message => "${instance} is equal to ${minimum}",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub minItems {
-    my ($self, $instance, $min, %params) = @_;
+    my ($self, $instance, $min, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'array', $self->strict);
     return 1 if scalar(@$instance) >= $min;
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} is shorter than $min");
+    push @{$data->{errors}}, error(
+        message => "minItems (>= ${min}) constraint violated",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub maxItems {
-    my ($self, $instance, $max, %params) = @_;
+    my ($self, $instance, $max, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'array', $self->strict);
     return 1 if scalar(@$instance) <= $max;
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} is longer than $max");
+    push @{$data->{errors}}, error(
+        message => "maxItems (<= ${max}) constraint violated",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub minLength {
-    my ($self, $instance, $min, %params) = @_;
+    my ($self, $instance, $min, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'string', $self->strict);
     return 1 if length $instance >= $min;
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} is shorter than $min");
+    push @{$data->{errors}}, error(
+        message => "minLength (>= ${min}) constraint violated",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub maxLength {
-    my ($self, $instance, $max, %params) = @_;
+    my ($self, $instance, $max, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'string', $self->strict);
     return 1 if length $instance <= $max;
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} is longer than $max");
+    push @{$data->{errors}}, error(
+        message => "maxLength (<= ${max}) constraint violated",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub dependencies {
-    my ($self, $instance, $dependencies, %params) = @_;
+    my ($self, $instance, $dependencies, $schema, $instance_path, $schema_path, $data) = @_;
 
     # ignore non-object
     return 1 unless is_type($instance, 'object', $self->strict);
@@ -167,17 +206,23 @@ sub dependencies {
     my $result = 1;
 
     for my $prop (keys %$dependencies) {
-        my $dep = $dependencies->{$prop};
         next unless exists $instance->{$prop};
+        my $dep = $dependencies->{$prop};
+        my $spath = json_pointer->append($schema_path, $prop);
 
-        if (is_type($dep, 'object', 1)) {
-            my $r = $self->validator->_validate_schema($instance, schema => $dep, path => $params{path}, data => $params{data});
+        if (is_type($dep, 'object', $self->strict)) {
+            my $r = $self->validator->_validate_schema($instance, $dep, $instance_path, $spath, $data);
             $result = 0 unless $r;
-        } elsif (is_type($dep, 'array', 1)) {
-            for my $p (@$dep) {
+        } elsif (is_type($dep, 'array', $self->strict)) {
+            for my $idx (0 .. $#{$dep}) {
+                my $p = $dep->[$idx];
                 next if exists $instance->{$p};
 
-                $self->validator->append_error($params{data}{errors}, "instance $params{path}/$p is ommited");
+                push @{$data->{errors}}, error(
+                    message => "dependencies constraint violated: property $p is ommited",
+                    instance_path => $instance_path,
+                    schema_path => json_pointer->append($spath, $idx)
+                );
                 $result = 0;
             }
         }
@@ -187,16 +232,20 @@ sub dependencies {
 }
 
 sub additionalItems {
-    my ($self, $instance, $additionalItems, %params) = @_;
+    my ($self, $instance, $additionalItems, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'array', $self->strict);
-    return 1 if is_type($params{schema}{items} // {}, 'object', 1);
+    return 1 if is_type($schema->{items} // {}, 'object', $self->strict);
 
-    my $len_items = scalar @{$params{schema}{items}};
+    my $len_items = scalar @{$schema->{items}};
 
-    if (is_type($additionalItems, 'boolean', 1)) {
+    if (is_type($additionalItems, 'boolean', $self->strict)) {
         return 1 if $additionalItems;
         if  (scalar @$instance > $len_items) {
-            $self->validator->append_error($params{data}{errors}, "instance $params{path}/items has additional items");
+            push @{$data->{errors}}, error(
+                message => 'additionalItems constraint violated',
+                instance_path => $instance_path,
+                schema_path => $schema_path
+            );
             return 0;
         }
 
@@ -211,8 +260,8 @@ sub additionalItems {
     for my $index (0 .. $#items_last_part) {
         my $item = $items_last_part[$index];
 
-        my $path = JSONSchema::Validator::JSONPointer->append($params{path}, $len_items + $index);
-        my $r = $self->validator->_validate_schema($item, schema => $additionalItems, path => $path, data => $params{data});
+        my $ipath = json_pointer->append($instance_path, $len_items + $index);
+        my $r = $self->validator->_validate_schema($item, $additionalItems, $ipath, $schema_path, $data);
         $result = 0 unless $r;
     }
 
@@ -220,25 +269,25 @@ sub additionalItems {
 }
 
 sub additionalProperties {
-    my ($self, $instance, $addProps, %params) = @_;
+    my ($self, $instance, $addProps, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'object', $self->strict);
 
-    my $patterns = join '|', keys %{$params{schema}{patternProperties} // {}};
+    my $patterns = join '|', keys %{$schema->{patternProperties} // {}};
 
     my @extra_props;
     for my $p (keys %$instance) {
-        next if $params{schema}{properties} && exists $params{schema}{properties}{$p};
+        next if $schema->{properties} && exists $schema->{properties}{$p};
         next if $patterns && $p =~ m/$patterns/u;
         push @extra_props, $p;
     }
 
     return 1 unless @extra_props;
 
-    if (is_type($addProps, 'object', 1)) {
+    if (is_type($addProps, 'object', $self->strict)) {
         my $result = 1;
         for my $p (@extra_props) {
-            my $path = JSONSchema::Validator::JSONPointer->append($params{path}, $p);
-            my $r = $self->validator->_validate_schema($instance->{$p}, schema => $addProps, path => $path, data => $params{data});
+            my $ipath = json_pointer->append($instance_path, $p);
+            my $r = $self->validator->_validate_schema($instance->{$p}, $addProps, $ipath, $schema_path, $data);
             $result = 0 unless $r;
         }
         return $result;
@@ -248,16 +297,22 @@ sub additionalProperties {
 
     return 1 if $addProps;
 
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} has additional properties: " . join(', ', @extra_props));
+    push @{$data->{errors}}, error(
+        message => 'additionalProperties constraint violated; properties: ' . join(', ', @extra_props),
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub allOf {
-    my ($self, $instance, $allOf, %params) = @_;
+    my ($self, $instance, $allOf, $schema, $instance_path, $schema_path, $data) = @_;
 
     my $result = 1;
-    for my $subschema (@$allOf) {
-        my $r = $self->validator->_validate_schema($instance, schema => $subschema, path => $params{path}, data => $params{data});
+    for my $idx (0 .. $#{$allOf}) {
+        my $subschema = $allOf->[$idx];
+        my $spath = json_pointer->append($schema_path, $idx);
+        my $r = $self->validator->_validate_schema($instance, $subschema, $instance_path, $spath, $data);
         $result = 0 unless $r;
     }
 
@@ -265,53 +320,97 @@ sub allOf {
 }
 
 sub anyOf {
-    my ($self, $instance, $anyOf, %params) = @_;
+    my ($self, $instance, $anyOf, $schema, $instance_path, $schema_path, $data) = @_;
+
+    my $errors = $data->{errors};
+    my $local_errors = [];
 
     my $result = 0;
-    for my $subschema (@$anyOf) {
-        $result = $self->validator->_validate_schema($instance, schema => $subschema, path => $params{path}, data => $params{data}, append_errors => 0);
+    for my $idx (0 .. $#$anyOf) {
+        $data->{errors} = [];
+        my $spath = json_pointer->append($schema_path, $idx);
+        $result = $self->validator->_validate_schema($instance, $anyOf->[$idx], $instance_path, $spath, $data);
+        unless ($result) {
+            push @{$local_errors}, error(
+                message => "$idx part of anyOf",
+                context => $data->{errors},
+                instance_path => $instance_path,
+                schema_path => $spath
+            );
+        }
         last if $result;
     }
-
+    $data->{errors} = $errors;
     return 1 if $result;
 
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} does not satisfy any schema");
+    push @{$data->{errors}}, error(
+        message => 'instance does not satisfy any schema',
+        context => $local_errors,
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub oneOf {
-    my ($self, $instance, $oneOf, %params) = @_;
+    my ($self, $instance, $oneOf, $schema, $instance_path, $schema_path, $data) = @_;
+
+    my $errors = $data->{errors};
+    my ($local_errors, $valid_schemas) = ([], []);
 
     my $num = 0;
-    for my $subschema (@$oneOf) {
-        my $r = $self->validator->_validate_schema($instance, schema => $subschema, path => $params{path}, data => $params{data}, append_errors => 0);
+    for my $idx (0 .. $#$oneOf) {
+        $data->{errors} = [];
+        my $spath = json_pointer->append($schema_path, $idx);
+        my $r = $self->validator->_validate_schema($instance, $oneOf->[$idx], $instance_path, $spath, $data);
+        if ($r) {
+            push @{$valid_schemas}, $spath;
+        } else {
+            push @{$local_errors}, error(
+                message => "$idx part of oneOf",
+                context => $data->{errors},
+                instance_path => $instance_path,
+                schema_path => $spath
+            );
+        }
         ++$num if $r;
     }
-
+    $data->{errors} = $errors;
     return 1 if $num == 1;
 
-    $num > 1
-        ? $self->validator->append_error($params{data}{errors}, "instance $params{path} is valid under more than one schema")
-        : $self->validator->append_error($params{data}{errors}, "instance $params{path} is not valid under any of given schemas");
-    
+    if ($num > 1) {
+        push @{$data->{errors}}, error(
+            message => 'instance is valid under more than one schema ' . join(' ', @$valid_schemas),
+            instance_path => $instance_path,
+            schema_path => $schema_path
+        );
+    } else {
+        push @{$data->{errors}}, error(
+            message => 'instance is not valid under any of given schemas',
+            context => $local_errors,
+            instance_path => $instance_path,
+            schema_path => $schema_path
+        );
+    }
+
     return 0;
 }
 
 sub enum {
-    my ($self, $instance, $enum, %params) = @_;
+    my ($self, $instance, $enum, $schema, $instance_path, $schema_path, $data) = @_;
 
     my $result = 0;
     for my $e (@$enum) {
-        if (is_type($e, 'boolean', 1)) {
+        if (is_type($e, 'boolean', $self->strict)) {
             $result = is_type($instance, 'boolean', $self->strict)
                         ? unbool($instance) eq unbool($e)
                         : 0
-        } elsif (is_type($e, 'object', 1) || is_type($e, 'array', 1)) {
+        } elsif (is_type($e, 'object', $self->strict) || is_type($e, 'array', $self->strict)) {
             $result =   is_type($instance, 'object', $self->strict) ||
                         is_type($instance, 'array', $self->strict)
                         ? serialize($instance) eq serialize($e)
                         : 0;
-        } elsif (is_type($e, 'number', 1)) {
+        } elsif (is_type($e, 'number', $self->strict)) {
             $result =   is_type($instance, 'number', $self->strict)
                         ? $e == $instance
                         : 0;
@@ -324,33 +423,38 @@ sub enum {
         }
         last if $result;
     }
-    
+
     return 1 if $result;
 
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} is not of enums");
+    push @{$data->{errors}}, error(
+        message => "instance is not of enums",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub items {
-    my ($self, $instance, $items, %params) = @_;
+    my ($self, $instance, $items, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'array', $self->strict);
 
     my $result = 1;
-    if (is_type($items, 'array', 1)) {
+    if (is_type($items, 'array', $self->strict)) {
         my $min = $#{$items} > $#{$instance} ? $#{$instance} : $#{$items};
         for my $i (0 .. $min) {
             my $item = $instance->[$i];
             my $subschema = $items->[$i];
-            my $path = JSONSchema::Validator::JSONPointer->append($params{path}, $i);
-            my $r = $self->validator->_validate_schema($item, schema => $subschema, path => $path, data => $params{data});
+            my $spath = json_pointer->append($schema_path, $i);
+            my $ipath = json_pointer->append($instance_path, $i);
+            my $r = $self->validator->_validate_schema($item, $subschema, $ipath, $spath, $data);
             $result = 0 unless $r;
         }
     } else {
         # items is object
         for my $i (0 .. $#{$instance}) {
             my $item = $instance->[$i];
-            my $path = JSONSchema::Validator::JSONPointer->append($params{path}, $i);
-            my $r = $self->validator->_validate_schema($item, schema => $items, path => $path, data => $params{data});
+            my $ipath = json_pointer->append($instance_path, $i);
+            my $r = $self->validator->_validate_schema($item, $items, $ipath, $schema_path, $data);
             $result = 0 unless $r;
         }
     }
@@ -358,7 +462,7 @@ sub items {
 }
 
 sub format {
-    my ($self, $instance, $format, %params) = @_;
+    my ($self, $instance, $format, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless exists FORMAT_VALIDATIONS->{$format};
 
     my ($type, $checker) = @{FORMAT_VALIDATIONS->{$format}};
@@ -367,30 +471,42 @@ sub format {
     my $result = $checker->($instance);
     return 1 if $result;
 
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} is not $format");
+    push @{$data->{errors}}, error(
+        message => "instance is not $format",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub maxProperties {
-    my ($self, $instance, $maxProperties, %params) = @_;
+    my ($self, $instance, $maxProperties, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'object', $self->strict);
     return 1 if scalar(keys %$instance) <= $maxProperties;
 
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} has more than $maxProperties properties");
+    push @{$data->{errors}}, error(
+        message => "instance has more than $maxProperties properties",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub minProperties {
-    my ($self, $instance, $minProperties, %params) = @_;
+    my ($self, $instance, $minProperties, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'object', $self->strict);
     return 1 if scalar(keys %$instance) >= $minProperties;
 
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} has less than $minProperties properties");
+    push @{$data->{errors}}, error(
+        message => "instance has less than $minProperties properties",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub multipleOf {
-    my ($self, $instance, $multipleOf, %params) = @_;
+    my ($self, $instance, $multipleOf, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'number', $self->strict);
 
     my $result = 1;
@@ -399,41 +515,59 @@ sub multipleOf {
 
     return 1 if $result;
 
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} is not multiple of $multipleOf");
+    push @{$data->{errors}}, error(
+        message => "instance is not multiple of $multipleOf",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub not {
-    my ($self, $instance, $not, %params) = @_;
+    my ($self, $instance, $not, $schema, $instance_path, $schema_path, $data) = @_;
+
+    my $errors = $data->{errors};
+    $data->{errors} = [];
+
     # not is schema
-    my $result = $self->validator->_validate_schema($instance, schema => $not, path => $params{path}, data => $params{data}, append_errors => 0);
+    my $result = $self->validator->_validate_schema($instance, $not, $instance_path, $schema_path, $data);
+    $data->{errors} = $errors;
     return 1 unless $result;
 
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} satisfies the schema defined in \"not\" keyword");
+    push @{$data->{errors}}, error(
+        message => 'instance satisfies the schema defined in \"not\" keyword',
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub pattern {
-    my ($self, $instance, $pattern, %params) = @_;
+    my ($self, $instance, $pattern, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'string', $self->strict);
     return 1 if $instance =~ m/$pattern/u;
 
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} does not match $pattern");
+    push @{$data->{errors}}, error(
+        message => "instance does not match $pattern",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub patternProperties {
-    my ($self, $instance, $patternProperties, %params) = @_;
+    my ($self, $instance, $patternProperties, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'object', $self->strict);
 
     my $result = 1;
     for my $pattern (keys %$patternProperties) {
         my $subschema = $patternProperties->{$pattern};
+        my $spath = json_pointer->append($schema_path, $pattern);
         for my $k (keys %$instance) {
             my $v = $instance->{$k};
             if ($k =~ m/$pattern/u) {
-                my $path = JSONSchema::Validator::JSONPointer->append($params{path}, $k);
-                my $r = $self->validator->_validate_schema($v, schema => $subschema, path => $path, data => $params{data});
+                my $ipath = json_pointer->append($instance_path, $k);
+                my $r = $self->validator->_validate_schema($v, $subschema, $ipath, $spath, $data);
                 $result = 0 unless $r;
             }
         }
@@ -442,7 +576,7 @@ sub patternProperties {
 }
 
 sub properties {
-    my ($self, $instance, $properties, %params) = @_;
+    my ($self, $instance, $properties, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'object', $self->strict);
 
     my $result = 1;
@@ -450,21 +584,27 @@ sub properties {
         next unless exists $instance->{$prop};
 
         my $subschema = $properties->{$prop};
-        my $path = JSONSchema::Validator::JSONPointer->append($params{path}, $prop);
-        my $r = $self->validator->_validate_schema($instance->{$prop}, schema => $subschema, path => $path, data => $params{data});
+        my $spath = json_pointer->append($schema_path, $prop);
+        my $ipath = json_pointer->append($instance_path, $prop);
+        my $r = $self->validator->_validate_schema($instance->{$prop}, $subschema, $ipath, $spath, $data);
         $result = 0 unless $r;
     }
     return $result;
 }
 
 sub required {
-    my ($self, $instance, $required, %params) = @_;
+    my ($self, $instance, $required, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'object', $self->strict);
 
     my $result = 1;
-    for my $prop (@$required) {
+    for my $idx (0 .. $#{$required}) {
+        my $prop = $required->[$idx];
         next if exists $instance->{$prop};
-        $self->validator->append_error($params{data}{errors}, "instance $params{path} does not have required property $prop");
+        push @{$data->{errors}}, error(
+            message => qq{instance does not have required property "$prop"},
+            instance_path => $instance_path,
+            schema_path => json_pointer->append($schema_path, $idx)
+        );
         $result = 0;
     }
     return $result;
@@ -472,7 +612,7 @@ sub required {
 
 # doesn't work for string that looks like number with the same number in array
 sub uniqueItems {
-    my ($self, $instance, $uniqueItems, %params) = @_;
+    my ($self, $instance, $uniqueItems, $schema, $instance_path, $schema_path, $data) = @_;
     return 1 unless is_type($instance, 'array', $self->strict);
     # uniqueItems is boolean
     return 1 unless $uniqueItems;
@@ -496,12 +636,16 @@ sub uniqueItems {
         $key => 1;
     } @$instance;
     return 1 if scalar(keys %hash) == scalar @$instance;
-    $self->validator->append_error($params{data}{errors}, "instance $params{path} has non-unique elements");
+    push @{$data->{errors}}, error(
+        message => "instance has non-unique elements",
+        instance_path => $instance_path,
+        schema_path => $schema_path
+    );
     return 0;
 }
 
 sub ref {
-    my ($self, $instance, $ref, %params) = @_;
+    my ($self, $instance, $ref, $origin_schema, $instance_path, $schema_path, $data) = @_;
 
     my $scope = $self->validator->scope;
     $ref = URI->new($ref);
@@ -514,14 +658,18 @@ sub ref {
     push @{$self->validator->scopes}, $current_scope;
 
     my $result = eval {
-        $self->validator->_validate_schema($instance, schema => $schema, path => $params{path}, data => $params{data}, apply_scope => 0);
+        $self->validator->_validate_schema($instance, $schema, $instance_path, $schema_path, $data, apply_scope => 0);
     };
 
     if ($@) {
         $result = 0;
-        $self->validator->append_error($params{data}{errors}, "exception: $@");
+        push @{$data->{errors}}, error(
+            message => "exception: $@",
+            instance_path => $instance_path,
+            schema_path => $schema_path
+        );
     }
-    
+
     pop @{$self->validator->scopes};
 
     return $result;

@@ -10,7 +10,7 @@ use URI;
 use URI::Escape;
 use Encode;
 
-use JSONSchema::Validator::JSONPointer;
+use JSONSchema::Validator::JSONPointer 'json_pointer';
 use JSONSchema::Validator::Util qw(get_resource decode_content);
 
 # what keys contain the schema? Required to find an $id in a schema
@@ -44,7 +44,6 @@ sub new {
 
     my $user_agent_get      = $params{user_agent_get};
     my $scheme_handlers     = $params{scheme_handlers} // {};
-    my $using_id_with_ref   = $params{using_id_with_ref} // 1;
 
     weaken($validator);
 
@@ -54,13 +53,12 @@ sub new {
             $base_uri => $schema
         },
         user_agent_get => $user_agent_get,
-        scheme_handlers => $scheme_handlers,
-        using_id_with_ref => $using_id_with_ref
+        scheme_handlers => $scheme_handlers
     };
 
     bless $self, $class;
 
-    $self->cache_id(URI->new($base_uri), $schema) if $using_id_with_ref;
+    $self->cache_id(URI->new($base_uri), $schema) if $validator->using_id_with_ref;
 
     return $self;
 }
@@ -69,7 +67,6 @@ sub validator { shift->{validator} }
 sub user_agent_get { shift->{user_agent_get} }
 sub scheme_handlers { shift->{scheme_handlers} }
 sub cache { shift->{cache} }
-sub using_id_with_ref { shift->{using_id_with_ref} }
 
 # self - URIResolver
 # origin_uri - URI
@@ -101,7 +98,7 @@ sub cache_resolve {
 
     $self->cache->{$uri->as_string} = $schema;
 
-    $self->cache_id($uri, $schema) if $self->using_id_with_ref;
+    $self->cache_id($uri, $schema) if $self->validator->using_id_with_ref;
 
     return $schema;
 }
@@ -117,11 +114,10 @@ sub fragment_resolve {
     my $enc = Encode::find_encoding("UTF-8");
     my $fragment = $enc->decode(uri_unescape($uri->fragment), 1);
 
-    my $pointer = JSONSchema::Validator::JSONPointer->new(
+    my $pointer = json_pointer->new(
         scope => $uri->as_string,
         value => $schema,
-        validator => $self->validator,
-        using_id_with_ref => $self->using_id_with_ref
+        validator => $self->validator
     );
 
     # try to use fragment as json pointer
