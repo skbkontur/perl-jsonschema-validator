@@ -6,13 +6,17 @@ JSONSchema::Validator - Validator for JSON Schema
 
 version 0.001
 
-# AUTHOR
+# AUTHORS
 
-Jonh Smith <john@smith.com>
+- Alexey Stavrov <logioniz@ya.ru>
+- Ivan Putintsev <uid@rydlab.ru>
+- Anton Fedotov <tosha.fedotov.2000@gmail.com>
+- Denis Ibaev <dionys@gmail.com>
+- Andrey Khozov <andrey@rydlab.ru>
 
 # COPYRIGHT AND LICENSE
 
-This software is Copyright (c) 2021 by John Smith.
+This software is Copyright (c) 2021 by Alexey Stavrov.
 
 This is free software, licensed under:
 
