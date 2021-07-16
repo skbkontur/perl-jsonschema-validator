@@ -161,7 +161,7 @@ sub read_file {
     open my $fh, '<', $path or croak "Open file $path error: $!";
     read $fh, (my $file_content), $size;
     close $fh;
-    
+
     return $file_content, $mime_type;
 }
 
@@ -240,7 +240,7 @@ sub is_string {
 sub data_section {
     my $class = shift;
     my $handle = do { no strict 'refs'; \*{"${class}::DATA"} };
-    return undef unless fileno $handle;
+    return unless fileno $handle;
     seek $handle, 0, 0;
     local $/ = undef;
     my $data = <$handle>;

@@ -47,7 +47,7 @@ sub new {
     croak 'unknown specification' unless $specification;
 
     my $validator_class = "JSONSchema::Validator::${specification}";
-    croak "Unknown specification param $specification" unless eval "require $validator_class; 1";
+    croak "Unknown specification param $specification" unless eval { require $validator_class; 1 };
 
     $base_uri //= $resource || $schema->{id} || $schema->{'$id'};
 
@@ -86,7 +86,7 @@ sub validate_resource_schema {
 
     my $validator_name = $SPECIFICATIONS->{$meta_schema};
     my $validator_class = "JSONSchema::Validator::${validator_name}";
-    eval "require $validator_class; 1";
+    eval { require $validator_class; 1 };
 
     my $validator = $validator_class->new(schema => $schema);
     my ($result, $errors) = $validator->validate_schema($schema_to_validate);

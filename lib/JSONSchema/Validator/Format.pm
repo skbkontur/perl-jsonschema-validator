@@ -161,7 +161,7 @@ sub URI_IRI_REGEXP_BUILDER {
     my $segment = qr/(?:${pchar})*/;
     my $path_rootless = qr/${segment_nz}(?:\/${segment})*/;
     my $path_noscheme = qr/${segment_nz_nc}(?:\/${segment})*/;
-    my $path_absolute = qr/\/(?:${segment_nz}(?:\/${segment})*)?/; 
+    my $path_absolute = qr/\/(?:${segment_nz}(?:\/${segment})*)?/;
     my $path_abempty = qr/(?:\/${segment})*/;
     my $reg_name = qr/(?:${iunreserved}|${pct_encoded}|${sub_delims})*/;
     my $IPvFuture = qr/v${HEXDIG}+\.(?:${unreserved}|${sub_delims}|:)+/; # must be unreserved, not iunreserved
@@ -174,7 +174,7 @@ sub URI_IRI_REGEXP_BUILDER {
     my $hier_part = qr!//${authority}${path_abempty}|${path_absolute}|${path_rootless}|!;
     my $uri = qr/\A${scheme}:${hier_part}(?:\?${query})?(?:#${fragment})?\z/;
     my $relative_part = qr!//${authority}${path_abempty}|${path_absolute}|${path_noscheme}|!;
-    my $relative_ref = qr/\A${relative_part}(?:\?${query})?(?:#${fragment})?\z/; 
+    my $relative_ref = qr/\A${relative_part}(?:\?${query})?(?:#${fragment})?\z/;
     my $uri_reference = qr/${uri}|${relative_ref}/;
     ($uri, $uri_reference);
 }
@@ -277,7 +277,7 @@ sub _validate_time {
 
 sub validate_uuid {
     # from rfc4122
-    # Today, there are versions 1-5. Version 6-F for future use. 
+    # Today, there are versions 1-5. Version 6-F for future use.
     # [089abAB] - variants
     return $_[0] =~ $UUID_PATTERN ? 1 : 0;
 }
