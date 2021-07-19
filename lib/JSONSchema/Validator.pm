@@ -9,14 +9,7 @@ use Carp 'croak';
 
 use JSONSchema::Validator::Util qw(get_resource decode_content read_file);
 
-
 our $VERSION = '0.001';
-
-
-my $SCHEMA_OF_SPEC = {
-    'OAS30' => 'Draft4',
-    'Draft4' => 'Draft4'
-};
 
 my $SPECIFICATIONS = {
     'https://spec.openapis.org/oas/3.0/schema/2019-04-02' => 'OAS30',
@@ -29,7 +22,7 @@ sub new {
     my ($class, %params) = @_;
 
     my $resource = delete $params{resource};
-    my $validate_resource = delete($params{validate_resource}) // 1;
+    my $validate_schema = delete($params{validate_schema}) // 1;
     my $schema = delete $params{schema};
     my $base_uri = delete $params{base_uri};
     my $specification = delete $params{specification};
@@ -37,19 +30,19 @@ sub new {
     $schema = resource_schema($resource, \%params) if !$schema && $resource;
     croak 'resource or schema must be specified' unless $schema;
 
-    if ($validate_resource) {
-        my ($result, $errors) = $class->validate_resource_schema($resource // '', $schema);
-        croak "invalid schema: \n" . join "\n", @$errors unless $result;
-    }
-
     $specification = schema_specification($schema) unless $specification;
     ($specification) = grep { lc eq lc($specification // '') } @$KNOWN_SPECIFICATIONS;
     croak 'unknown specification' unless $specification;
 
+    if ($validate_schema) {
+        my ($result, $errors) = $class->validate_resource_schema($schema, $specification);
+        croak "invalid schema:\n" . join "\n", @$errors unless $result;
+    }
+
     my $validator_class = "JSONSchema::Validator::${specification}";
     croak "Unknown specification param $specification" unless eval { require $validator_class; 1 };
 
-    $base_uri //= $resource || $schema->{id} || $schema->{'$id'};
+    $base_uri //= $resource || $schema->{'$id'} || $schema->{id};
 
     return $validator_class->new(schema => $schema, base_uri => $base_uri, %params);
 }
@@ -71,18 +64,19 @@ sub validate_paths {
 sub validate_resource {
     my ($class, $resource, %params) = @_;
     my $schema_to_validate = resource_schema($resource, \%params);
-    return $class->validate_resource_schema($resource, $schema_to_validate);
+
+    my $specification = schema_specification($schema_to_validate);
+    ($specification) = grep { lc eq lc($specification // '') } @$KNOWN_SPECIFICATIONS;
+    croak "unknown specification of resource $resource" unless $specification;
+
+    return $class->validate_resource_schema($schema_to_validate, $specification);
 }
 
 sub validate_resource_schema {
-    my ($class, $resource, $schema_to_validate) = @_;
-    my $specification = schema_specification($schema_to_validate);
-    croak "unknown document type of $resource" unless $specification;
+    my ($class, $schema_to_validate, $schema_specification) = @_;
 
-    my $schema = read_specification($specification);
-
+    my $schema = read_specification($schema_specification);
     my $meta_schema = $schema->{'$schema'};
-    croak "unknown schema of $resource" unless $meta_schema;
 
     my $validator_name = $SPECIFICATIONS->{$meta_schema};
     my $validator_class = "JSONSchema::Validator::${validator_name}";
@@ -111,11 +105,10 @@ sub resource_schema {
 sub schema_specification {
     my $schema = shift;
 
-    my $id = $schema->{id} || $schema->{'$id'};
-    my $specification = undef;
-    $specification = $SPECIFICATIONS->{$id} if $id;
+    my $meta_schema = $schema->{'$schema'};
+    my $specification = $meta_schema ? $SPECIFICATIONS->{$meta_schema} : undef;
 
-    if (!$id && $schema->{openapi}) {
+    if (!$specification && $schema->{openapi}) {
         my @vers = split /\./, $schema->{openapi};
         $specification = 'OAS' . $vers[0] . $vers[1];
     }
