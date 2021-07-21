@@ -96,9 +96,9 @@ Currently there are validators: JSONSchema::Validator::Draft4, JSONSchema::Valid
 
 Validate all files specified by path globs.
 
-    my $result = Schema::Validator->validate_paths(['/some/path/to/openapi.*.yaml', '/some/path/to/jsonschema.*.json']);
+    my $result = JSONSchema::Validator->validate_paths(['/some/path/to/openapi.*.yaml', '/some/path/to/jsonschema.*.json']);
     for my $file (keys %$result) {
-        my ($result, $errors) = $result->{$file};
+        my ($res, $errors) = @{$result->{$file}};
     }
 
 # AUTHORS

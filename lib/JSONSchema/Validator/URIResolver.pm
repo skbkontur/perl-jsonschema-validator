@@ -58,6 +58,11 @@ sub new {
 
     bless $self, $class;
 
+    if ('#' eq substr $base_uri, -1) {
+        $base_uri = substr $base_uri, 0, - 1;
+        $self->{cache}{$base_uri} = $schema;
+    }
+
     $self->cache_id(URI->new($base_uri), $schema) if $validator->using_id_with_ref;
 
     return $self;

@@ -6,6 +6,7 @@ use strict;
 use warnings;
 use URI::file;
 use Carp 'croak';
+use Cwd;
 
 use JSONSchema::Validator::Util qw(get_resource decode_content read_file);
 
@@ -13,7 +14,8 @@ our $VERSION = '0.001';
 
 my $SPECIFICATIONS = {
     'https://spec.openapis.org/oas/3.0/schema/2019-04-02' => 'OAS30',
-    'http://json-schema.org/draft-04/schema#' => 'Draft4'
+    'http://json-schema.org/draft-04/schema#' => 'Draft4',
+    'http://json-schema.org/draft-04/schema' => 'Draft4'
 };
 
 my $KNOWN_SPECIFICATIONS = ['OAS30', 'Draft4'];
@@ -52,7 +54,7 @@ sub validate_paths {
     my ($class, $globs) = @_;
     my $results = {};
     for my $glob (@$globs) {
-        my @resources = glob $glob;
+        my @resources = map { Cwd::abs_path($_) } glob $glob;
         for my $resource (@resources) {
             my $uri = URI::file->new($resource)->as_string;
             my ($result, $errors) = $class->validate_resource($uri);
@@ -92,7 +94,7 @@ sub validate_resource_schema {
 sub read_specification {
     my $filename = shift;
     my $curret_filepath = __FILE__;
-    my $schema_filepath = ($curret_filepath =~ s/.pm//r) . '/schemas/' . lc($filename) . '.json';
+    my $schema_filepath = ($curret_filepath =~ s/\.pm$//r) . '/schemas/' . lc($filename) . '.json';
     my ($content, $mime_type) = read_file($schema_filepath);
     return decode_content($content, $mime_type, $schema_filepath);
 }
@@ -212,9 +214,9 @@ Currently there are validators: JSONSchema::Validator::Draft4, JSONSchema::Valid
 
 Validate all files specified by path globs.
 
-    my $result = Schema::Validator->validate_paths(['/some/path/to/openapi.*.yaml', '/some/path/to/jsonschema.*.json']);
+    my $result = JSONSchema::Validator->validate_paths(['/some/path/to/openapi.*.yaml', '/some/path/to/jsonschema.*.json']);
     for my $file (keys %$result) {
-        my ($result, $errors) = $result->{$file};
+        my ($res, $errors) = @{$result->{$file}};
     }
 
 =cut

@@ -3,6 +3,7 @@
 
 requires "B" => "0";
 requires "Carp" => "0";
+requires "Cwd" => "0";
 requires "Encode" => "0";
 requires "File::Basename" => "0";
 requires "JSON::PP" => "0";
