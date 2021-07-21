@@ -1,9 +1,11 @@
 package JSONSchema::Validator::Util;
 
+# ABSTRACT: Usefull functions
+
 use strict;
 use warnings;
 
-use URI;
+use URI 1.00;
 use File::Basename;
 use B;
 use Carp 'croak';
@@ -109,10 +111,12 @@ sub round {
 # scheme_handlers - map[scheme -> handler]
 # uri - string
 sub get_resource {
-    my ($scheme_handlers, $user_agent_get, $uri) = @_;
+    my ($scheme_handlers, $uri) = @_;
     $uri = URI->new($uri);
 
-    $user_agent_get //= \&user_agent_get;
+    for my $s ('http', 'https') {
+        $scheme_handlers->{$s} = \&user_agent_get unless exists $scheme_handlers->{$s};
+    }
 
     my $scheme = $uri->scheme;
 
@@ -121,8 +125,6 @@ sub get_resource {
         ($response, $mime_type) = $scheme_handlers->{$scheme}->($uri->as_string);
     } elsif ($scheme eq 'file') {
         ($response, $mime_type) = read_file($uri->file);
-    } elsif (grep { $_ eq $scheme } qw/http https/) {
-        ($response, $mime_type) = $user_agent_get->($uri->as_string);
     } else {
         croak 'Unsupported scheme of uri ' . $uri->as_string;
     }

@@ -1,6 +1,6 @@
 package JSONSchema::Validator;
 
-# ABSTRACT: Validator for JSON Schema
+# ABSTRACT: Validator for JSON Schema Draft4 and OpenAPI Specification 3.0
 
 use strict;
 use warnings;
@@ -40,7 +40,8 @@ sub new {
     }
 
     my $validator_class = "JSONSchema::Validator::${specification}";
-    croak "Unknown specification param $specification" unless eval { require $validator_class; 1 };
+    my $validator_file = $validator_class =~ s!::!/!gr;
+    croak "Unknown specification param $specification: $@" unless eval { require $validator_file . '.pm'; 1 };
 
     $base_uri //= $resource || $schema->{'$id'} || $schema->{id};
 
@@ -80,7 +81,8 @@ sub validate_resource_schema {
 
     my $validator_name = $SPECIFICATIONS->{$meta_schema};
     my $validator_class = "JSONSchema::Validator::${validator_name}";
-    eval { require $validator_class; 1 };
+    my $validator_file = $validator_class =~ s!::!/!gr;
+    croak "Can't import module $validator_class: $@" unless eval { require $validator_file . '.pm'; 1 };
 
     my $validator = $validator_class->new(schema => $schema);
     my ($result, $errors) = $validator->validate_schema($schema_to_validate);
@@ -97,7 +99,7 @@ sub read_specification {
 
 sub resource_schema {
     my ($resource, $params) = @_;
-    my ($response, $mime_type) = get_resource($params->{scheme_handlers}, $params->{user_agent_get}, $resource);
+    my ($response, $mime_type) = get_resource($params->{scheme_handlers}, $resource);
     my $schema = decode_content($response, $mime_type, $resource);
     return $schema;
 }
@@ -117,3 +119,102 @@ sub schema_specification {
 }
 
 1;
+
+__END__
+
+=head1 SYNOPSIS
+
+    # to get OpenAPI validator of schema in YAML format
+    $validator = JSONSchema::Validator->new(resource => 'file:///some/path/to/oas30.yml');
+    my ($result, $errors, $warnings) = $validator->validate_request(
+        method => 'GET',
+        openapi_path => '/user/{id}/profile',
+        parameters => {
+            path => {
+                id => 1234
+            },
+            query => {
+                details => 'short'
+            },
+            header => {
+                header => 'header value'
+            },
+            cookie => {
+                name => 'value'
+            },
+            body => [$is_exists, $content_type, $data]
+        }
+    );
+    my ($result, $errors, $warnings) = $validator->validate_response(
+        method => 'GET',
+        openapi_path => '/user/{id}/profile',
+        status => '200',
+        parameters => {
+            header => {
+                header => 'header value'
+            },
+            body => [$is_exists, $content_type, $data]
+        }
+    )
+
+    # to get Draft4 JSON Schema validator of schema in JSON format
+    $validator = JSONSchema::Validator->new(resource => 'http://example.com/draft4/schema.json')
+    my ($result, $errors) = $validator->validate_schema($object_to_validate)
+
+=head1 DESCRIPTION
+
+OpenAPI specification and Draft4 JSON Schema validators with minimum dependencies.
+
+=head1 CLASS METHODS
+
+=head2 new
+
+Creates one of the following validators: JSONSchema::Validator::Draft4, JSONSchema::Validator::OAS30.
+
+    my $validator = JSONSchema::Validator->new(resource => 'file:///some/path/to/oas30.yml');
+    my $validator = JSONSchema::Validator->new(resource => 'http://example.com/draft4/schema.json');
+    my $validator = JSONSchema::Validator->new(schema => {'$schema' => 'path/to/schema', ...});
+    my $validator = JSONSchema::Validator->new(schema => {...}, specification => 'Draft4');
+
+if parameter C<specification> is not specified then type of validator will be determined by C<$schema> key
+for Draft4 JSON Schema and by C<openapi> key for OpenAPI Specification 3.0 in C<schema> parameter.
+
+=head3 Parameters
+
+=head4 resources
+
+To get schema by uri
+
+=head4 schema
+
+To get explicitly specified schema
+
+=head4 specification
+
+To specify specification of schema
+
+=head4 validate_schema
+
+Do not validate specified schema
+
+=head4 base_uri
+
+To specify base uri of schema.
+This parameter used to build absolute path by relative reference in schema.
+By default C<base_uri> is equal to the resource path if the resource parameter is specified otherwise the C<$id> key in the schema.
+
+=head3 Additional parameters
+
+Additional parameters need to be looked at in a specific validator class.
+Currently there are validators: JSONSchema::Validator::Draft4, JSONSchema::Validator::OAS30.
+
+=head2 validate_paths
+
+Validate all files specified by path globs.
+
+    my $result = Schema::Validator->validate_paths(['/some/path/to/openapi.*.yaml', '/some/path/to/jsonschema.*.json']);
+    for my $file (keys %$result) {
+        my ($result, $errors) = $result->{$file};
+    }
+
+=cut

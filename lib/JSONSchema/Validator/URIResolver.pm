@@ -1,5 +1,7 @@
 package JSONSchema::Validator::URIResolver;
 
+# ABSTRACT: URI resolver
+
 use strict;
 use warnings;
 use Carp 'croak';
@@ -42,7 +44,6 @@ sub new {
     my $schema      = $params{schema} || croak 'URIResolver: schema must be specified';
     my $base_uri    = $params{base_uri} // '';
 
-    my $user_agent_get      = $params{user_agent_get};
     my $scheme_handlers     = $params{scheme_handlers} // {};
 
     weaken($validator);
@@ -52,7 +53,6 @@ sub new {
         cache => {
             $base_uri => $schema
         },
-        user_agent_get => $user_agent_get,
         scheme_handlers => $scheme_handlers
     };
 
@@ -64,7 +64,6 @@ sub new {
 }
 
 sub validator { shift->{validator} }
-sub user_agent_get { shift->{user_agent_get} }
 sub scheme_handlers { shift->{scheme_handlers} }
 sub cache { shift->{cache} }
 
@@ -93,7 +92,7 @@ sub cache_resolve {
 
     return $self->cache->{$uri->as_string} if exists $self->cache->{$uri->as_string};
 
-    my ($response, $mime_type) = get_resource($self->scheme_handlers, $self->user_agent_get, $uri->as_string);
+    my ($response, $mime_type) = get_resource($self->scheme_handlers, $uri->as_string);
     my $schema = decode_content($response, $mime_type, $uri->as_string);
 
     $self->cache->{$uri->as_string} = $schema;

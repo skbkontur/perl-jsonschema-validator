@@ -1,5 +1,7 @@
 package JSONSchema::Validator::Draft4;
 
+# ABSTRACT: Validator for JSON Schema Draft4
+
 use strict;
 use warnings;
 use URI;
@@ -19,8 +21,7 @@ sub new {
     my $strict = $params{strict} // 1;
     my $using_id_with_ref = $params{using_id_with_ref} // 1;
 
-    my $scheme_handlers = $params{scheme_handlers};
-    my $user_agent_get = $params{user_agent_get};
+    my $scheme_handlers = $params{scheme_handlers} // {};
 
     my $self = {
         schema => $schema,
@@ -41,8 +42,7 @@ sub new {
         validator => $self,
         base_uri => $base_uri,
         schema => $schema,
-        scheme_handlers => $scheme_handlers,
-        user_agent_get => $user_agent_get
+        scheme_handlers => $scheme_handlers
     );
     $self->{resolver} = $resolver;
 
@@ -125,3 +125,56 @@ sub _schema_keys {
 }
 
 1;
+
+__END__
+
+=head1 SYNOPSIS
+
+    # to get OpenAPI validator of schema in YAML format
+    $validator = JSONSchema::Validator::Draft4->new(schema => {...});
+    my ($result, $errors) = $validator->validate_schema($object_to_validate);
+
+=head1 DESCRIPTION
+
+JSON Schema Draft4 validator with minimum dependencies.
+
+=head1 CLASS METHODS
+
+=head2 new
+
+Creates JSONSchema::Validator::Draft4 object.
+
+    $validator = JSONSchema::Validator::Draft4->new(schema => {...});
+
+=head3 Parameters
+
+=head4 schema
+
+Scheme according to which validation occures.
+
+=head4 strict
+
+Use strong type checks. Default value is 1.
+
+=head4 using_id_with_ref
+
+Consider key C<$id> to identify subschema when resolving links.
+For more details look at json schema docs about L<named anchors|https://json-schema.org/understanding-json-schema/structuring.html#id12> and L<bundling|https://json-schema.org/understanding-json-schema/structuring.html#id19>.
+
+=head4 scheme_handlers
+
+At the moment, the validator can load a resource using the http, https protocols. You can add other protocols yourself.
+
+    sub loader {
+        my $uri = shift;
+        ...
+    }
+    $validator = JSONSchema::Validator::Draft4->new(schema => {...}, scheme_handlers => {ftp => \&loader});
+
+=head1 METHODS
+
+=head2 validate_schema
+
+Validate object instance according to schema.
+
+=cut

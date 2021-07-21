@@ -1,5 +1,7 @@
 package JSONSchema::Validator::JSONPointer;
 
+# ABSTRACT: JSON Pointer with URI resolving
+
 use strict;
 use warnings;
 use URI;

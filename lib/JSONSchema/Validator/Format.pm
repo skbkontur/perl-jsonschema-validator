@@ -1,5 +1,7 @@
 package JSONSchema::Validator::Format;
 
+# ABSTRACT: Formats of JSON Schema specification
+
 use strict;
 use warnings;
 use Time::Piece;

@@ -1,5 +1,7 @@
 package JSONSchema::Validator::Error;
 
+# ABSTRACT: Error class
+
 use strict;
 use warnings;
 

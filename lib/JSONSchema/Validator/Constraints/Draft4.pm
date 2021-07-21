@@ -1,5 +1,7 @@
 package JSONSchema::Validator::Constraints::Draft4;
 
+# ABSTRACT: JSON Schema Draft4 specification constraints
+
 use strict;
 use warnings;
 use Scalar::Util 'weaken';

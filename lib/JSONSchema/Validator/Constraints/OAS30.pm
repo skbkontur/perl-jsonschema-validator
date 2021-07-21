@@ -1,5 +1,7 @@
 package JSONSchema::Validator::Constraints::OAS30;
 
+# ABSTRACT: OpenAPI 3.0 specification constraints
+
 use strict;
 use warnings;
 use URI;

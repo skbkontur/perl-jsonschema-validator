@@ -1,5 +1,7 @@
 package JSONSchema::Validator::OAS30;
 
+# ABSTRACT: Validator for OpenAPI Specification 3.0
+
 use strict;
 use warnings;
 use Carp 'croak';
@@ -366,3 +368,171 @@ sub json_pointer {
 }
 
 1;
+
+__END__
+
+=head1 SYNOPSIS
+
+    # to get OpenAPI validator of schema in YAML format
+    $validator = JSONSchema::Validator::OAS30->new(schema => {...});
+    my ($result, $errors, $warnings) = $validator->validate_request(
+        method => 'GET',
+        openapi_path => '/user/{id}/profile',
+        parameters => {
+            path => {
+                id => 1234
+            },
+            query => {
+                details => 'short'
+            },
+            header => {
+                header => 'header value'
+            },
+            cookie => {
+                name => 'value'
+            },
+            body => [$is_exists, $content_type, $data]
+        }
+    );
+    my ($result, $errors, $warnings) = $validator->validate_response(
+        method => 'GET',
+        openapi_path => '/user/{id}/profile',
+        status => '200',
+        parameters => {
+            header => {
+                header => 'header value'
+            },
+            body => [$is_exists, $content_type, $data]
+        }
+    );
+
+=head1 DESCRIPTION
+
+OpenAPI specification 3.0 validator with minimum dependencies.
+
+=head1 CLASS METHODS
+
+=head2 new
+
+Creates JSONSchema::Validator::OAS30 object.
+
+    $validator = JSONSchema::Validator::OAS30->new(schema => {...});
+
+=head3 Parameters
+
+=head4 schema
+
+Scheme according to which validation occures.
+
+=head4 strict
+
+Use strong type checks. Default value is 0.
+
+=head4 scheme_handlers
+
+At the moment, the validator can load a resource using the http, https protocols. You can add other protocols yourself.
+
+    sub loader {
+        my $uri = shift;
+        ...
+    }
+    $validator = JSONSchema::Validator::Draft4->new(schema => {...}, scheme_handlers => {ftp => \&loader});
+
+=head4 validate_deprecated
+
+Validate method/parameter/schema with deprecated mark. Default value is 1.
+
+=head1 METHODS
+
+=head2 validate_request
+
+Validate request specified by method and openapi_path.
+
+=head3 Parameters
+
+=head4 method
+
+HTTP method of request.
+
+=head4 openapi_path
+
+Openapi path of request.
+
+Need to specify openapi path, not the real path of request.
+
+=head4 parameters
+
+Parameters of request. It is an object that contains the following keys: C<query>, C<path>, C<header>, C<cookie> and C<body>.
+Keys C<query>, C<path>, C<header>, C<cookie> are hash objects which contains key/value pairs.
+Key C<body> is a array reference which contains 3 values.
+The first value is a boolean flag that means if there is a body.
+The second value is a Content-Type of request.
+The third value is a data of value.
+
+    # post params
+    my ($result, $errors, $warnings) = $validator->validate_request(
+        method => 'POST',
+        parameters => {
+            path => {user => 'adam'},
+            body => [1, 'application/x-www-form-urlencoded', {key => 'value'}]
+        }
+    );
+
+    # for file upload
+    my ($result, $errors, $warnings) = $validator->validate_request(
+        method => 'POST',
+        parameters => {
+            body => [1, 'multipart/form-data', {key => 'value', file => 'binary data'}]
+        }
+    );
+
+    # for multiple file upload for the same name
+    my ($result, $errors, $warnings) = $validator->validate_request(
+        method => 'POST',
+        parameters => {
+            body => [1, 'multipart/form-data', {key => 'value', files => ['binary data1', 'binary data2']}]
+        }
+    );
+
+=head2 validate_response
+
+Validate response specified by method, openapi_path and http status code.
+
+=head3 Parameters
+
+
+=head4 method
+
+HTTP method of request.
+
+=head4 openapi_path
+
+Openapi path of request.
+
+Need to specify openapi path, not the real path of request.
+
+=head4 status
+
+HTTP response status code.
+
+=head4 parameters
+
+Parameters of response. It is an object that contains the following keys: C<header> and C<body>.
+Key C<header> are hash objects which contains key/value pairs.
+Key C<body> is a array reference which contains 3 values.
+The first value is a boolean flag that means if there is a body.
+The second value is a Content-Type of response.
+The third value is a data of value.
+
+    # to validate application/json response
+    my ($result, $errors, $warnings) = $validator->validate_response(
+        method => 'GET',
+        openapi_path => '/user/{id}',
+        status => '404',
+        parameters => {
+            header => {name => 'value'},
+            body => [1, 'application/json', {message => 'user not found'}]
+        }
+    );
+
+=cut
