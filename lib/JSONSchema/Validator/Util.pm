@@ -60,6 +60,7 @@ BEGIN {
     } elsif (eval { require JSON::XS; JSON::XS->VERSION(3.0); 1; }) {
         $json_class = 'JSON::XS';
     } else {
+        require JSON::PP;
         $json_class = 'JSON::PP';
     }
     my $json = $json_class->new->canonical(1)->utf8;

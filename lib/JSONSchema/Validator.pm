@@ -10,7 +10,7 @@ use Cwd;
 
 use JSONSchema::Validator::Util qw(get_resource decode_content read_file);
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 my $SPECIFICATIONS = {
     'https://spec.openapis.org/oas/3.0/schema/2019-04-02' => 'OAS30',
