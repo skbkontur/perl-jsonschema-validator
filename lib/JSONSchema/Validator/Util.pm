@@ -1,6 +1,6 @@
 package JSONSchema::Validator::Util;
 
-# ABSTRACT: Usefull functions
+# ABSTRACT: Useful functions
 
 use strict;
 use warnings;

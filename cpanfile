@@ -14,6 +14,7 @@ requires "constant" => "0";
 requires "overload" => "0";
 requires "parent" => "0";
 requires "perl" => "v5.16.0";
+requires "re" => "0";
 requires "strict" => "0";
 requires "warnings" => "0";
 

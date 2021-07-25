@@ -150,7 +150,7 @@ Creates JSONSchema::Validator::Draft4 object.
 
 =head4 schema
 
-Scheme according to which validation occures.
+Scheme according to which validation occurs.
 
 =head4 strict
 

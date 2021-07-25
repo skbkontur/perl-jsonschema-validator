@@ -422,7 +422,7 @@ Creates JSONSchema::Validator::OAS30 object.
 
 =head4 schema
 
-Scheme according to which validation occures.
+Scheme according to which validation occurs.
 
 =head4 strict
 
@@ -456,9 +456,9 @@ HTTP method of request.
 
 =head4 openapi_path
 
-Openapi path of request.
+OpenAPI path of request.
 
-Need to specify openapi path, not the real path of request.
+Need to specify OpenAPI path, not the real path of request.
 
 =head4 parameters
 
@@ -507,9 +507,9 @@ HTTP method of request.
 
 =head4 openapi_path
 
-Openapi path of request.
+OpenAPI path of request.
 
-Need to specify openapi path, not the real path of request.
+Need to specify OpenAPI path, not the real path of request.
 
 =head4 status
 
