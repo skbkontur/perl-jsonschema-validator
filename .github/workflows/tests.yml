@@ -2,23 +2,18 @@ name: test
 on: ['push', 'pull_request']
 jobs:
   test:
-    name: Test on os ${{ matrix.os }} and perl ${{ matrix.perl-version }}
+    name: Perl ${{ matrix.perl }} on os ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        perl-version:
-          - '5.16'
-          - '5.18'
-          - '5.20'
-          - '5.22'
-          - '5.30'
-          - '5.32'
-          - '5.34'
+        perl: ['5.16','5.18','5.20','5.22','5.30','5.32','5.34']
         os: [ubuntu-latest, windows-latest, macos-latest]
-    container:
-      image: perl:${{ matrix.perl-version }}
     steps:
       - uses: actions/checkout@v2
+      - name: Set up perl
+        uses: shogo82148/actions-setup-perl@v1
+        with:
+          perl-version: ${{ matrix.perl }}
       - name: Show perl version
         run: perl -V
       - name: Install dependencies
