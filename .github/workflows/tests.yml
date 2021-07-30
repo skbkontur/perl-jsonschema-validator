@@ -16,7 +16,10 @@ jobs:
           perl-version: ${{ matrix.perl }}
       - name: Show perl version
         run: perl -V
-      - name: Install dependencies
+      - name: Install specific dependencies
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: cpanm -n Test::JSON::Schema::Acceptance LWP::UserAgent
+      - name: Install common dependencies
         run: cpanm -n --installdeps .
       - name: Run tests
         run: prove -lvr t
