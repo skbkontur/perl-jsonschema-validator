@@ -1,36 +1,3 @@
-#!/usr/bin/env perl
-
-use strict;
-use warnings;
-use JSONSchema::Validator::Draft4;
-use JSONSchema::Validator::Util qw/json_decode data_section/;
-
-use Test::More;
-
-my $data = data_section('main');
-
-my $tests = json_decode($data);
-
-for my $test (@$tests) {
-    my $test_topic = $test->{subject};
-    my $validator = JSONSchema::Validator::Draft4->new(schema => $test->{schema});
-    my $subtests = $test->{tests};
-    for my $t (@$subtests) {
-        my $test_name = $test_topic . ': ' . $t->{description};
-        my ($result, $errors) = $validator->validate_schema($t->{data});
-        if ($t->{valid}) {
-            is $result, 1, $test_name;
-            is @$errors, 0, $test_name . '; errors is empty';
-        } else {
-            is $result, 0, $test_name;
-            ok @$errors > 0, $test_name . '; errors is not empty';
-        }
-    }
-}
-
-done_testing;
-
-__DATA__
 [
     {
         "subject": "recursive",

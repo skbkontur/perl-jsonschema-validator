@@ -41,13 +41,13 @@ version 0.002
         }
     )
 
-    # to get Draft4 JSON Schema validator of schema in JSON format
+    # to get JSON Schema Draft4/Draft6 validator of schema in JSON format
     $validator = JSONSchema::Validator->new(resource => 'http://example.com/draft4/schema.json')
     my ($result, $errors) = $validator->validate_schema($object_to_validate)
 
 # DESCRIPTION
 
-OpenAPI specification and Draft4 JSON Schema validators with minimum dependencies.
+OpenAPI specification and JSON Schema Draft4/Draft6 validators with minimum dependencies.
 
 # CLASS METHODS
 
