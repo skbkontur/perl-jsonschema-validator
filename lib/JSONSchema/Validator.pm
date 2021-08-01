@@ -1,6 +1,6 @@
 package JSONSchema::Validator;
 
-# ABSTRACT: Validator for JSON Schema Draft4 and OpenAPI Specification 3.0
+# ABSTRACT: Validator for JSON Schema Draft4/Draft6/Draft7 and OpenAPI Specification 3.0
 
 use strict;
 use warnings;
@@ -10,6 +10,7 @@ use Cwd;
 
 use JSONSchema::Validator::Draft4;
 use JSONSchema::Validator::Draft6;
+use JSONSchema::Validator::Draft7;
 use JSONSchema::Validator::OAS30;
 use JSONSchema::Validator::Util qw(get_resource decode_content read_file);
 
@@ -18,10 +19,11 @@ our $VERSION = '0.003';
 my $SPECIFICATIONS = {
     JSONSchema::Validator::OAS30::ID => JSONSchema::Validator::OAS30::SPECIFICATION,
     JSONSchema::Validator::Draft4::ID => JSONSchema::Validator::Draft4::SPECIFICATION,
-    JSONSchema::Validator::Draft6::ID => JSONSchema::Validator::Draft6::SPECIFICATION
+    JSONSchema::Validator::Draft6::ID => JSONSchema::Validator::Draft6::SPECIFICATION,
+    JSONSchema::Validator::Draft7::ID => JSONSchema::Validator::Draft7::SPECIFICATION
 };
 
-our $JSON_SCHEMA_VALIDATORS = ['JSONSchema::Validator::Draft4', 'JSONSchema::Validator::Draft6'];
+our $JSON_SCHEMA_VALIDATORS = ['JSONSchema::Validator::Draft4', 'JSONSchema::Validator::Draft6', 'JSONSchema::Validator::Draft7'];
 our $OAS_VALIDATORS = ['JSONSchema::Validator::OAS30'];
 
 sub new {
@@ -168,19 +170,19 @@ __END__
         }
     )
 
-    # to get JSON Schema Draft4/Draft6 validator of schema in JSON format
+    # to get JSON Schema Draft4/Draft6/Draft7 validator of schema in JSON format
     $validator = JSONSchema::Validator->new(resource => 'http://example.com/draft4/schema.json')
     my ($result, $errors) = $validator->validate_schema($object_to_validate)
 
 =head1 DESCRIPTION
 
-OpenAPI specification and JSON Schema Draft4/Draft6 validators with minimum dependencies.
+OpenAPI specification and JSON Schema Draft4/Draft6/Draft7 validators with minimum dependencies.
 
 =head1 CLASS METHODS
 
 =head2 new
 
-Creates one of the following validators: JSONSchema::Validator::Draft4, JSONSchema::Validator::OAS30.
+Creates one of the following validators: JSONSchema::Validator::Draft4, JSONSchema::Validator::Draft6, JSONSchema::Validator::Draft7, JSONSchema::Validator::OAS30.
 
     my $validator = JSONSchema::Validator->new(resource => 'file:///some/path/to/oas30.yml');
     my $validator = JSONSchema::Validator->new(resource => 'http://example.com/draft4/schema.json');
@@ -188,7 +190,7 @@ Creates one of the following validators: JSONSchema::Validator::Draft4, JSONSche
     my $validator = JSONSchema::Validator->new(schema => {...}, specification => 'Draft4');
 
 if parameter C<specification> is not specified then type of validator will be determined by C<$schema> key
-for Draft4 JSON Schema and by C<openapi> key for OpenAPI Specification 3.0 in C<schema> parameter.
+for JSON Schema Draft4/Draft6/Draft7 and by C<openapi> key for OpenAPI Specification 3.0 in C<schema> parameter.
 
 =head3 Parameters
 
@@ -217,7 +219,7 @@ By default C<base_uri> is equal to the resource path if the resource parameter i
 =head3 Additional parameters
 
 Additional parameters need to be looked at in a specific validator class.
-Currently there are validators: JSONSchema::Validator::Draft4, JSONSchema::Validator::OAS30.
+Currently there are validators: JSONSchema::Validator::Draft4, JSONSchema::Validator::Draft6, JSONSchema::Validator::Draft7, JSONSchema::Validator::OAS30.
 
 =head2 validate_paths
 

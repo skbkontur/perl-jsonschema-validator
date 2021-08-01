@@ -21,7 +21,12 @@ my $SEARCH_ID = {
         additionalItems => 1,
         items => 1,
         additionalProperties => 1,
-        not => 1
+        not => 1,
+        propertyNames => 1,
+        contains => 1,
+        if => 1,
+        then => 1,
+        else => 1
     },
     kv_value => {
         properties => 1,
