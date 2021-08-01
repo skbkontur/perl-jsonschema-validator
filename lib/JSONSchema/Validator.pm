@@ -13,7 +13,7 @@ use JSONSchema::Validator::Draft6;
 use JSONSchema::Validator::OAS30;
 use JSONSchema::Validator::Util qw(get_resource decode_content read_file);
 
-our $VERSION = '0.002';
+our $VERSION = '0.003';
 
 my $SPECIFICATIONS = {
     JSONSchema::Validator::OAS30::ID => JSONSchema::Validator::OAS30::SPECIFICATION,
