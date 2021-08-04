@@ -109,6 +109,10 @@ Validate all files specified by path globs.
 - Denis Ibaev <dionys@gmail.com>
 - Andrey Khozov <andrey@rydlab.ru>
 
+# CONTRIBUTOR
+
+James Waters <james@jcwaters.co.uk>
+
 # COPYRIGHT AND LICENSE
 
 This software is Copyright (c) 2021 by Alexey Stavrov.
