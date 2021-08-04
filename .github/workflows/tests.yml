@@ -23,3 +23,5 @@ jobs:
         run: cpanm -n --installdeps .
       - name: Run tests
         run: prove -lvr t
+        env:
+          ACCEPTANCE_TESTING: 1
