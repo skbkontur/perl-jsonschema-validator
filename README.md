@@ -49,7 +49,7 @@ version 0.005
 
 OpenAPI specification and JSON Schema Draft4/Draft6/Draft7 validators with minimum dependencies.
 
-# CLASS METHODS
+# METHODS
 
 ## new
 
@@ -94,12 +94,16 @@ Currently there are validators: JSONSchema::Validator::Draft4, JSONSchema::Valid
 
 ## validate\_paths
 
-Validate all files specified by path globs.
+Validates all files specified by path globs.
 
     my $result = JSONSchema::Validator->validate_paths(['/some/path/to/openapi.*.yaml', '/some/path/to/jsonschema.*.json']);
     for my $file (keys %$result) {
         my ($res, $errors) = @{$result->{$file}};
     }
+
+## validate\_resource
+
+## validate\_resource\_schema
 
 # AUTHORS
 
