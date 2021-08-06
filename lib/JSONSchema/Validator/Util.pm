@@ -5,16 +5,16 @@ package JSONSchema::Validator::Util;
 use strict;
 use warnings;
 
+use URI 1.00;
+use File::Basename;
 use B;
 use Carp 'croak';
-use File::Basename;
-use JSON::MaybeXS 1.004001 ();
+
 use Scalar::Util 'looks_like_number';
-use URI 1.00;
 
 our @ISA = 'Exporter';
 our @EXPORT_OK = qw(
-    encode_json decode_json user_agent_get serialize unbool
+    json_encode json_decode user_agent_get serialize unbool
     round read_file is_type detect_type get_resource decode_content
     data_section
 );
@@ -53,6 +53,20 @@ BEGIN {
         *yaml_load = sub { croak 'No YAML package installed' };
     }
 
+    # JSON
+    my $json_class;
+    if (eval { require Cpanel::JSON::XS; 1; }) {
+        $json_class = 'Cpanel::JSON::XS';
+    } elsif (eval { require JSON::XS; JSON::XS->VERSION(3.0); 1; }) {
+        $json_class = 'JSON::XS';
+    } else {
+        require JSON::PP;
+        $json_class = 'JSON::PP';
+    }
+    my $json = $json_class->new->canonical(1)->utf8;
+    *json_encode = sub { $json->encode(@_); };
+    *json_decode = sub { $json->decode(@_); };
+
     # UserAgent
     if (eval { require LWP::UserAgent; 1; }) {
         my $ua = LWP::UserAgent->new;
@@ -88,11 +102,7 @@ sub unbool {
     return $x;
 }
 
-sub encode_json = sub { JSON::MaybeXS->new->canonical(1)->utf8->encode(@_); };
-
-sub decode_json = sub { JSON::MaybeXS->new->canonical(1)->utf8->decode(@_); };
-
-sub serialize { encode_json(shift) }
+sub serialize { json_encode(shift) }
 
 sub round {
     my $value = shift;
@@ -128,11 +138,11 @@ sub decode_content {
     my $schema;
     if ($mime_type) {
         $schema = yaml_load($response) if $mime_type =~ m/yaml/;
-        $schema = decode_json($response) if $mime_type =~ m/json/;
+        $schema = json_decode($response) if $mime_type =~ m/json/;
     }
     unless ($schema) {
         # try to guess
-        $schema = eval { decode_json($response) };
+        $schema = eval { json_decode($response) };
         $schema = eval { yaml_load($response) } if $@;
         croak "Unsupported mime type $mime_type of resource " . $resource unless $schema;
     }

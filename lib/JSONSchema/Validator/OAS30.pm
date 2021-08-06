@@ -10,7 +10,7 @@ use JSONSchema::Validator::JSONPointer;
 use JSONSchema::Validator::Error 'error';
 use JSONSchema::Validator::Constraints::OAS30;
 use JSONSchema::Validator::URIResolver;
-use JSONSchema::Validator::Util 'decode_json';
+use JSONSchema::Validator::Util 'json_decode';
 
 use parent 'JSONSchema::Validator::Draft4';
 
@@ -299,7 +299,7 @@ sub _validate_content {
 
     unless (ref $data) {
         if ($content_type eq 'application/json') {
-            $data = decode_json($data);
+            $data = json_decode($data);
         }
         # need to support other content-type?
     }
