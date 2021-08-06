@@ -88,9 +88,9 @@ sub unbool {
     return $x;
 }
 
-sub encode_json { JSON::MaybeXS->new->canonical(1)->utf8->encode(@_); }
+sub encode_json = sub { JSON::MaybeXS->new->canonical(1)->utf8->encode(@_); };
 
-sub decode_json { JSON::MaybeXS->new->canonical(1)->utf8->decode(@_); }
+sub decode_json = sub { JSON::MaybeXS->new->canonical(1)->utf8->decode(@_); };
 
 sub serialize { encode_json(shift) }
 
