@@ -10,8 +10,6 @@ our @EXPORT_OK = qw(test_dir detect_warnings);
 
 my @WARNINGS;
 
-use Data::Dumper;
-
 sub import {
     Helper->catch_warnings if grep { $_ eq 'detect_warnings' } @_;
     Helper->export_to_level(1, @_);
