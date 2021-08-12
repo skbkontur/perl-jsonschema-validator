@@ -51,7 +51,6 @@ use constant FORMAT_VALIDATIONS => {
     'iri-reference' => ['string', \&validate_iri_reference],
     'uri-template' => ['string', \&validate_uri_template]
 };
-use constant EPSILON => 1e-7;
 
 sub new {
     my ($class, %params) = @_;
@@ -527,8 +526,9 @@ sub multipleOf {
     return 1 unless $self->check_type($instance, 'number');
 
     my $result = 1;
+
     my $div = $instance / $multipleOf;
-    $result = 0 if $div == 'Inf' || abs($div - round($div)) > EPSILON;
+    $result = 0 if $div == 'Inf' || int($div) != $div;
 
     return 1 if $result;
 
