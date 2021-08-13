@@ -143,8 +143,10 @@ sub fetch_file {
     if ($file->scheme eq 'https' && !exists $File::Fetch::METHODS->{https}) {
         require version;
         if (version->parse(File::Fetch->VERSION) < version->parse('0.50')) {
-            $File::Fetch::METHODS->{https} = [qw( lwp wget curl )];
-            eval { require LWP::Protocol::https };
+            $File::Fetch::METHODS->{https} = [
+                eval { require LWP::Protocol::https } ? 'lwp' : (),
+                qw( wget curl ),
+            ];
         }
     }
 
