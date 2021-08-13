@@ -5,23 +5,23 @@ package JSONSchema::Validator::Util;
 use strict;
 use warnings;
 
-use URI 1.00;
-use File::Basename;
-use B;
+use B ();
 use Carp 'croak';
-
+use File::Basename ();
+use File::Fetch ();
 use Scalar::Util 'looks_like_number';
+use URI 1.00 ();
 
 our @ISA = 'Exporter';
 our @EXPORT_OK = qw(
     json_encode json_decode user_agent_get serialize unbool
-    round read_file is_type detect_type get_resource decode_content
+    round fetch_file read_file is_type detect_type get_resource decode_content
     data_section
 );
 
 use constant FILE_SUFFIX_TO_MIME_TYPE => {
     'yaml' => 'text/vnd.yaml',
-    'yml' => 'text/vnd.yaml',
+    'yml'  => 'text/vnd.yaml',
     'json' => 'application/json'
 };
 
@@ -66,31 +66,6 @@ BEGIN {
     my $json = $json_class->new->canonical(1)->utf8;
     *json_encode = sub { $json->encode(@_); };
     *json_decode = sub { $json->decode(@_); };
-
-    # UserAgent
-    if (eval { require LWP::UserAgent; 1; }) {
-        my $ua = LWP::UserAgent->new;
-        *user_agent_get = sub {
-            my $uri = shift;
-            my $response = $ua->get($uri);
-            if ($response->is_success) {
-                return $response->decoded_content, $response->headers->content_type;
-            }
-            croak "Can not get uri $uri";
-        };
-    } elsif (eval { require Mojo::UserAgent; 1; }) {
-        my $ua = Mojo::UserAgent->new;
-        *user_agent_get = sub {
-            my $uri = shift;
-            my $response = $ua->get($uri)->result;
-            if ($response->is_success) {
-                return $response->body, $response->headers->content_type;
-            }
-            croak "Can not get uri $uri";
-        };
-    } else {
-        *user_agent_get = sub { croak 'No UserAgent package installed' };
-    }
 }
 
 sub unbool {
@@ -115,8 +90,8 @@ sub get_resource {
     my ($scheme_handlers, $uri) = @_;
     $uri = URI->new($uri);
 
-    for my $s ('http', 'https') {
-        $scheme_handlers->{$s} = \&user_agent_get unless exists $scheme_handlers->{$s};
+    foreach (qw( http https )) {
+        $scheme_handlers->{$_} = \&fetch_file unless exists $scheme_handlers->{$_};
     }
 
     my $scheme = $uri->scheme;
@@ -150,16 +125,45 @@ sub decode_content {
     return $schema;
 }
 
+sub detect_mime_type_from_path {
+    my ($path) = @_;
+
+    my (undef, undef, $suffix) = File::Basename::fileparse($path, qw( json yaml yml ));
+
+    return FILE_SUFFIX_TO_MIME_TYPE->{$suffix} if exists FILE_SUFFIX_TO_MIME_TYPE->{$suffix};
+    return;
+}
+
+sub fetch_file {
+    my ($uri) = @_;
+
+    my $file = File::Fetch->new(uri => $uri) or croak(File::Fetch->error);
+
+    # Try to patch File::Fetch < 0.50 to support HTTPS scheme.
+    if ($file->scheme eq 'https' && !exists $File::Fetch::METHODS->{https}) {
+        require version;
+        if (version->parse(File::Fetch->VERSION) < version->parse('0.50')) {
+            $File::Fetch::METHODS->{https} = [qw( lwp wget curl )];
+            eval { require LWP::Protocol::https };
+        }
+    }
+
+    $file->fetch(to => \my $content) or croak($file->error // "Can't fetch file from $uri");
+
+    my $mime_type = detect_mime_type_from_path($file->output_file);
+    croak("Unknown file format of $uri") unless $mime_type;
+
+    return ($content, $mime_type);
+}
+
 sub read_file {
     my $path = shift;
     croak "File $path does not exists" unless -e $path;
     croak "File $path does not have read permission" unless -r _;
     my $size = -s _;
 
-    my ($filename, $dir, $suffix) = File::Basename::fileparse($path, 'yml', 'yaml', 'json');
-    croak "Unknown file format of $path" unless $suffix;
-
-    my $mime_type = FILE_SUFFIX_TO_MIME_TYPE->{$suffix};
+    my $mime_type = detect_mime_type_from_path($path);
+    croak "Unknown file format of $path" unless $mime_type;
 
     open my $fh, '<', $path or croak "Open file $path error: $!";
     read $fh, (my $file_content), $size;
