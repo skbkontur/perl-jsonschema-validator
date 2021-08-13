@@ -88,6 +88,7 @@ sub round {
 # uri - string
 sub get_resource {
     my ($scheme_handlers, $uri) = @_;
+
     $uri = URI->new($uri);
 
     foreach (qw( http https )) {
@@ -104,6 +105,7 @@ sub get_resource {
     } else {
         croak 'Unsupported scheme of uri ' . $uri->as_string;
     }
+
     return ($response, $mime_type);
 }
 
@@ -153,7 +155,6 @@ sub fetch_file {
     $file->fetch(to => \my $content) or croak($file->error // "Can't fetch file from $uri");
 
     my $mime_type = detect_mime_type_from_path($file->output_file);
-    croak("Unknown file format of $uri") unless $mime_type;
 
     return ($content, $mime_type);
 }
@@ -164,12 +165,11 @@ sub read_file {
     croak "File $path does not have read permission" unless -r _;
     my $size = -s _;
 
-    my $mime_type = detect_mime_type_from_path($path);
-    croak "Unknown file format of $path" unless $mime_type;
-
     open my $fh, '<', $path or croak "Open file $path error: $!";
     read $fh, (my $file_content), $size;
     close $fh;
+
+    my $mime_type = detect_mime_type_from_path($path);
 
     return $file_content, $mime_type;
 }
