@@ -199,7 +199,7 @@ __END__
 
 =head1 SYNOPSIS
 
-    # to get OpenAPI validator of schema in YAML format
+    # to get OpenAPI validator in YAML format
     $validator = JSONSchema::Validator->new(resource => 'file:///some/path/to/oas30.yml');
     my ($result, $errors, $warnings) = $validator->validate_request(
         method => 'GET',
@@ -232,7 +232,7 @@ __END__
         }
     )
 
-    # to get JSON Schema Draft4/Draft6/Draft7 validator of schema in JSON format
+    # to get JSON Schema Draft4/Draft6/Draft7 validator in JSON format
     $validator = JSONSchema::Validator->new(resource => 'http://example.com/draft4/schema.json')
     my ($result, $errors) = $validator->validate_schema($object_to_validate)
 
