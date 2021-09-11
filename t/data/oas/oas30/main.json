@@ -145,6 +145,71 @@
                             }
                         }
                     }
+                },
+                "/encoding/test": {
+                    "get" : {
+                        "requestBody": {
+                            "content": {
+                                "application/x-www-form-urlencoded": {
+                                    "schema": {
+                                        "type" : "object",
+                                        "properties" : {
+                                            "name" : {
+                                                "type" : "string"
+                                            },
+                                            "info" : {
+                                                "type" : "object",
+                                                "properties" : {
+                                                    "grade" : {
+                                                        "type" : "integer"
+                                                    },
+                                                    "age" : {
+                                                        "type" : "integer"
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        "responses" : {
+                            "200" : {
+                                "description" : "multipart/form-data with encoding option for property",
+                                "content": {
+                                    "multipart/form-data" : {
+                                        "schema" : {
+                                            "type" : "object",
+                                            "properties" : {
+                                                "name" : {
+                                                    "type" : "string"
+                                                },
+                                                "surname" : {
+                                                    "type" : "string"
+                                                },
+                                                "info" : {
+                                                    "type" : "object",
+                                                    "properties" : {
+                                                        "grade" : {
+                                                            "type" : "integer"
+                                                        },
+                                                        "age" : {
+                                                            "type" : "integer"
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        },
+                                        "encoding" : {
+                                            "info" : {
+                                                "contentType" : "application/json"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             },
             "components": {
@@ -686,6 +751,32 @@
                 "ctype_res" : "application/json",
 
                 "valid_req": true,
+                "valid_res": true
+            },
+
+            {
+                "description": "ctype url-encoded/form-data and property has encoding option; github issue 8",
+                "method" : "get",
+                "openapi_path" : "/encoding/test",
+
+                "path" : { },
+                "query" : { },
+                "header_req" : { },
+                "body_req" : {
+                    "name" : "Anna",
+                    "info" : "{\"grade\" : 5, \"age\": {}}"
+                },
+                "ctype_req" : "application/x-www-form-urlencoded",
+
+                "status" : "200",
+                "body_res" : {
+                    "name" : "Vanya",
+                    "surname" : "Pupkin",
+                    "info" : "{\"grade\" : 5, \"age\": 12}"
+                },
+                "ctype_res" : "multipart/form-data",
+
+                "valid_req": false,
                 "valid_res": true
             }
         ]

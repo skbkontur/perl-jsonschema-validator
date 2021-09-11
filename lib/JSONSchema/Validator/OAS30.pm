@@ -291,7 +291,7 @@ sub _validate_content {
     } else {
         my $mtype_map = $content_ptr->value;
         my @keys = $content_ptr->keys(raw => 1);
-        return 0, [error(message => qq{schema has more than one content_type})], [] if scalar(@keys) > 1;
+        return 0, [error(message => qq{schema must has exactly one content_type})], [] unless scalar(@keys) == 1;
 
         $content_type = $keys[0];
         $ctype_ptr = $content_ptr->xget($content_type);
@@ -301,7 +301,31 @@ sub _validate_content {
         if ($content_type eq 'application/json') {
             $data = json_decode($data);
         }
-        # need to support other content-type?
+        # do we need to support other content-type?
+    }
+
+    my $encoding_ptr = $ctype_ptr->xget('encoding');
+    if (
+        $encoding_ptr &&
+        $content_type &&
+        (
+            $content_type eq 'application/x-www-form-urlencoded' ||
+            index($content_type, 'multipart/') == 0
+        ) &&
+        ref $data eq 'HASH'
+    ) {
+        for my $property_name ($encoding_ptr->keys(raw => 1)) {
+            my $property_ctype_ptr = $encoding_ptr->xget($property_name, 'contentType');
+            next unless $property_ctype_ptr;
+            if (
+                $property_ctype_ptr->value eq 'application/json' &&
+                exists $data->{$property_name} &&
+                ref $data->{$property_name} ne 'HASH'
+            ) {
+                $data->{$property_name} = json_decode($data->{$property_name});
+            }
+            # do we need to support other content-type?
+        }
     }
 
     my $schema_ptr = $ctype_ptr->xget('schema');
