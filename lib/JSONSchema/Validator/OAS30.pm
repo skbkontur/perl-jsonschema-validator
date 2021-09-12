@@ -298,37 +298,45 @@ sub _validate_content {
     }
 
     unless (ref $data) {
-        if ($content_type eq 'application/json') {
-            $data = json_decode($data);
+        if (index($content_type, 'application/json') != -1) {
+            eval { $data = json_decode($data); };
         }
         # do we need to support other content-type?
     }
 
-    my $encoding_ptr = $ctype_ptr->xget('encoding');
+    my $schema_ptr = $ctype_ptr->xget('schema');
+    my $schema_prop_ptr = $schema_ptr->xget('properties');
+
     if (
-        $encoding_ptr &&
+        $schema_prop_ptr &&
         $content_type &&
         (
-            $content_type eq 'application/x-www-form-urlencoded' ||
-            index($content_type, 'multipart/') == 0
+            index($content_type ,'application/x-www-form-urlencoded') != -1 ||
+            index($content_type, 'multipart/') != -1
         ) &&
         ref $data eq 'HASH'
     ) {
-        for my $property_name ($encoding_ptr->keys(raw => 1)) {
-            my $property_ctype_ptr = $encoding_ptr->xget($property_name, 'contentType');
-            next unless $property_ctype_ptr;
+        for my $property_name ($schema_prop_ptr->keys(raw => 1)) {
+            my $property_ctype_ptr = $ctype_ptr->xget('encoding', $property_name, 'contentType');
+            my $property_ctype = $property_ctype_ptr ? $property_ctype_ptr->value : '';
+            unless ($property_ctype) {
+                my $prop_type_ptr = $schema_prop_ptr->xget($property_name, 'type');
+                $property_ctype = $prop_type_ptr && $prop_type_ptr->value eq 'object' ? 'application/json' : '';
+            }
+
             if (
-                $property_ctype_ptr->value eq 'application/json' &&
+                index($property_ctype, 'application/json') != -1 &&
                 exists $data->{$property_name} &&
-                ref $data->{$property_name} ne 'HASH'
+                !ref $data->{$property_name}
             ) {
-                $data->{$property_name} = json_decode($data->{$property_name});
+                eval {
+                    $data->{$property_name} = json_decode($data->{$property_name});
+                };
             }
             # do we need to support other content-type?
         }
     }
 
-    my $schema_ptr = $ctype_ptr->xget('schema');
     return $self->validate_schema($data,
         schema => $schema_ptr->value,
         path => '/',
