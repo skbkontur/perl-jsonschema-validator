@@ -6,6 +6,7 @@
     cpanm Dist::Zilla                           # to build and upload module to cpan
     dzil authordeps --missing | cpanm           # to install dzil dependencies
     cpanm Pod::Weaver::Section::Contributors    # to automatically maintain the list of contributors
+    apt-get install spell                       # for spell check
 
 # SETUP
 
@@ -22,4 +23,6 @@
 
 # RELEASE/UPLOAD TO CPAN
 
+    # update Changes
+    # update version in JSONSchema::Validator
     dzil release
