@@ -6,6 +6,7 @@ requires "Carp" => "0";
 requires "Cwd" => "0";
 requires "Encode" => "0";
 requires "File::Basename" => "0";
+requires "File::Fetch" => "0";
 requires "JSON::PP" => "0";
 requires "Scalar::Util" => "0";
 requires "Time::Piece" => "0";
@@ -16,6 +17,7 @@ requires "parent" => "0";
 requires "perl" => "v5.16.0";
 requires "re" => "0";
 requires "strict" => "0";
+requires "version" => "0";
 requires "warnings" => "0";
 
 on 'test' => sub {
