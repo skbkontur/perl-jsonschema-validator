@@ -59,4 +59,25 @@ sub unwind_to_string_list {
     return $res;
 }
 
+sub TO_JSON {
+    my $self = shift;
+    my $res = {
+        message => $self->message
+    };
+
+    $res->{instance_path} = $self->instance_path
+        if $self->instance_path;
+    $res->{schema_path} = $self->schema_path
+        if $self->schema_path;
+
+    if (@{$self->context}) {
+        $res->{context} = [
+            map { $_->TO_JSON }
+            @{$self->context}
+            ];
+    }
+
+    return $res;
+}
+
 1;
