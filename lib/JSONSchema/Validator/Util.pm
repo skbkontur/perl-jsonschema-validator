@@ -201,7 +201,10 @@ sub is_array {
 
 # params: $value, $is_strict
 sub is_bool {
-    return 1 if ref $_[0] eq 'JSON::PP::Boolean';
+    my $type = ref $_[0];
+    return 1 if $type eq 'JSON::PP::Boolean' or
+                $type eq 'JSON::XS::Boolean' or
+                $type eq 'Cpanel::JSON::XS::Boolean';
     return 0 if $_[1]; # is strict
     my $is_number = looks_like_number($_[0]) && ($_[0] == 1 || $_[0] == 0);
     my $is_string = defined $_[0] && $_[0] eq '';
