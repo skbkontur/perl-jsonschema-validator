@@ -9,6 +9,7 @@ use Carp 'croak';
 
 use JSONSchema::Validator::JSONPointer 'json_pointer';
 use JSONSchema::Validator::Error 'error';
+use JSONSchema::Validator::Util 'detect_type';
 
 use parent 'JSONSchema::Validator::Constraints::Draft4';
 
@@ -34,8 +35,9 @@ sub type {
 
     return 1 if $result;
 
+    my $actual_type = detect_type($instance);
     push @{$data->{errors}}, error(
-        message => 'type mismatch',
+        message => "type mismatch (expecting: $type, found: $actual_type)",
         instance_path => $instance_path,
         schema_path => $schema_path
     );
