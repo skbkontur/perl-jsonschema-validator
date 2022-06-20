@@ -85,8 +85,9 @@ sub type {
 
     return 1 if grep { $self->check_type($instance, $_) } @types;
 
+    my $actual_type = detect_type($instance);
     push @{$data->{errors}}, error(
-        message => "type mismatch",
+        message => "type mismatch (expecting any of (@types), found: $actual_type)",
         instance_path => $instance_path,
         schema_path => $schema_path
     );
