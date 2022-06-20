@@ -128,7 +128,7 @@ sub _validate_schema {
         my $method = $k eq '$ref' ? 'ref' : $k;
         next unless my $constraint = $self->constraints->can($method);
 
-        my $spath = json_pointer->append($schema_path, $k);
+        my $spath = json_pointer->append($schema_path, $k eq '$ref' ? "$k($v)" : $k);
 
         my $r = eval {
             $self->constraints->$constraint($instance, $v, $schema, $instance_path, $spath, $data);
