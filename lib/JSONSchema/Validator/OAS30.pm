@@ -286,12 +286,12 @@ sub _validate_content {
     if ($content_type) {
         $ctype_ptr = $content_ptr->xget($content_type);
         unless ($ctype_ptr) {
-            return 0, [error(message => qq{content with content-type $content_type is omit in schema})], [];
+            return 0, [error(message => qq{content with content-type $content_type is not in schema})], [];
         }
     } else {
         my $mtype_map = $content_ptr->value;
         my @keys = $content_ptr->keys(raw => 1);
-        return 0, [error(message => qq{schema must has exactly one content_type})], [] unless scalar(@keys) == 1;
+        return 0, [error(message => qq{content type not specified; schema must have exactly one content_type})], [] unless scalar(@keys) == 1;
 
         $content_type = $keys[0];
         $ctype_ptr = $content_ptr->xget($content_type);
