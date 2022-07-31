@@ -240,4 +240,52 @@ __END__
 
 OpenAPI specification and JSON Schema Draft4/Draft6/Draft7 validators with minimum dependencies.
 
+=head1 CAVEATS
+
+=head2 YAML & booleans
+
+When reading schema definitions from YAML, please note that the standard
+behaviour of L<YAML::PP> and L<YAML::XS> is to read values which evaluate
+to C<true> or C<false> in a perl context. These values have no recognizable
+'boolean type'. This is insufficient for JSON schema validation.
+
+To make the YAML readers and booleans work with C<JSONSchema::Validator>,
+you need to use the C<JSON::PP> (included in Perl's standard library) module
+as follows:
+
+  # for YAML::PP
+  use YAML::PP;
+
+  my $reader = YAML::PP->new( boolean => 'JSON::PP' );
+  # from here, you can freely use the reader to
+  # read & write booleans as 'true' and 'false'
+
+
+  # for YAML::XS
+  use YAML::XS;
+
+  my $reader = YAML::XS->new;
+
+  # and whenever you read YAML with this reader, do:
+  my $yaml = do {
+    local $YAML::XS::Boolean = 'JSON::PP';
+    $reader->Load($string); # or $reader->LoadFile('filename');
+  };
+
+This isn't a problem when you use the C<resource> argument to the
+C<JSONSchema::Validator::new> constructor, but if you read your own
+schema and use the C<schema> argument, this is something to be aware of.
+
+=head2 allow_bignum => 1
+
+The C<allow_bignum => 1> setting (available on L<JSON::XS> and
+L<Cpanel::JSON::XS>) on deserializers is not supported.
+
+When deserializing a request body with a JSON parser configured with
+C<allow_bignum => 1>, floats - even ones which fit into the regular
+float ranges - will be deserialized as C<Math::BigFloat>. Similarly,
+integers outside of the internal integer range are deserialized as
+C<Math::BigInt>. Numbers represented as C<Math::Big*> objects are not
+recognized as actual numbers and will fail validation.
+
 =cut
