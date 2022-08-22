@@ -244,29 +244,25 @@ sub _validate_type_params {
 
         next unless $data_ptr->xget('schema') || $data_ptr->xget('content');
 
-        $value = [$value] if ref $value ne 'ARRAY';
+        my ($r, $errors, $warnings);
 
-        for my $v (@$value) {
-            my ($r, $errors, $warnings);
-
-            if ($data_ptr->xget('schema')) {
-                my $schema_ptr = $data_ptr->xget('schema');
-                ($r, $errors, $warnings) = $self->validate_schema($v,
-                    schema => $schema_ptr->value,
-                    path => '/',
-                    direction => $ctx->{direction},
-                    scope => $schema_ptr->scope
-                );
-            } elsif ($data_ptr->xget('content')) {
-                ($r, $errors, $warnings) = $self->_validate_content($ctx, $data_ptr, undef, $v);
-            }
-
-            unless ($r) {
-                push @{$ctx->{errors}}, error(message => qq{$type param "$param" has error}, context => $errors);
-                $result = 0;
-            }
-            push @{$ctx->{warnings}}, error(message => qq{$type param "$param" has warning}, context => $warnings) if @$warnings;
+        if ($data_ptr->xget('schema')) {
+            my $schema_ptr = $data_ptr->xget('schema');
+            ($r, $errors, $warnings) = $self->validate_schema($value,
+                schema => $schema_ptr->value,
+                path => '/',
+                direction => $ctx->{direction},
+                scope => $schema_ptr->scope
+            );
+        } elsif ($data_ptr->xget('content')) {
+            ($r, $errors, $warnings) = $self->_validate_content($ctx, $data_ptr, undef, $value);
         }
+
+        unless ($r) {
+            push @{$ctx->{errors}}, error(message => qq{$type param "$param" has error}, context => $errors);
+            $result = 0;
+        }
+        push @{$ctx->{warnings}}, error(message => qq{$type param "$param" has warning}, context => $warnings) if @$warnings;
     }
 
     return $result;
