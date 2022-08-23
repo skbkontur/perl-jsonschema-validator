@@ -87,7 +87,7 @@ sub load_schema {
     my ($content_ref, $content_type) = eval { get_content($resource, $scheme_handlers) };
 
     if ($@) {
-        croak('Failed to load resource %s: %s', $resource, $@);
+        croak(sprintf('Failed to load resource %s: %s', $resource, $@));
     }
 
     my $schema = eval { decode_content($content_ref, $content_type) };
@@ -121,7 +121,7 @@ sub get_content {
             ($content_ref, $content_type) = read_file($uri->file);
         }
         else {
-            croak('Unsupported scheme of URI ' . $uri->as_string);
+            croak(sprintf('Unsupported scheme %s of URI %s', $scheme, $uri->as_string));
         }
     }
     else {
