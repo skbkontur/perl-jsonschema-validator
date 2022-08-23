@@ -8,7 +8,7 @@ use lib 't/lib';
 
 use Helper qw/test_dir detect_warnings/;
 use JSONSchema::Validator;
-use JSONSchema::Validator::Util qw/read_file decode_content/;
+use JSONSchema::Validator::Util qw( load_schema );
 
 for my $validator_class (@{$JSONSchema::Validator::OAS_VALIDATORS}) {
     my $version = lc($validator_class->SPECIFICATION);
@@ -17,11 +17,11 @@ for my $validator_class (@{$JSONSchema::Validator::OAS_VALIDATORS}) {
     my $instance_file_ok = test_dir("/data/validator_oas/${version}-ok.json");
     my $instance_file_wrong = test_dir("/data/validator_oas/${version}-wrong.json");
 
-    my $instance_ok = decode_content(read_file($instance_file_ok), $instance_file_ok);
-    my $instance_wrong = decode_content(read_file($instance_file_wrong), $instance_file_wrong);
+    my $instance_ok = load_schema($instance_file_ok);
+    my $instance_wrong = load_schema($instance_file_wrong);
 
     my $schema_file = test_dir("/data/validator_oas/${version}-schema.json");
-    my $schema = decode_content(read_file($schema_file), $schema_file);
+    my $schema = load_schema($schema_file);
 
     my @validators = (
         JSONSchema::Validator->new(resource => $resource),

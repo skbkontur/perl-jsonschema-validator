@@ -15,15 +15,12 @@ use URI 1.00 ();
 our @ISA = 'Exporter';
 our @EXPORT_OK = qw(
     json_encode json_decode user_agent_get serialize unbool
-    round fetch_file read_file is_type detect_type get_resource decode_content
-    data_section
+    round is_type detect_type
+    data_section load_schema
 );
 
-use constant FILE_SUFFIX_TO_MIME_TYPE => {
-    'yaml' => 'text/vnd.yaml',
-    'yml'  => 'text/vnd.yaml',
-    'json' => 'application/json'
-};
+use constant CONTENT_TYPE_JSON => 'JSON';
+use constant CONTENT_TYPE_YAML => 'YAML';
 
 use constant TYPE_MAP => {
     'array' => \&is_array,
@@ -84,66 +81,91 @@ sub round {
     return int($value + ($value >= 0 ? 0.5 : -0.5));
 }
 
-# scheme_handlers - map[scheme -> handler]
-# uri - string
-sub get_resource {
-    my ($scheme_handlers, $resource) = @_;
+sub load_schema {
+    my ($resource, $scheme_handlers) = @_;
 
-    my $uri = URI->new($resource);
+    my ($content_ref, $content_type) = eval { get_content($resource, $scheme_handlers) };
 
-    foreach (qw( http https )) {
-        $scheme_handlers->{$_} = \&fetch_file unless exists $scheme_handlers->{$_};
+    if ($@) {
+        croak('Failed to load resource %s: %s', $resource, $@);
     }
 
-    my $scheme = $uri->scheme;
+    my $schema = eval { decode_content($content_ref, $content_type) };
 
-    my ($response, $mime_type);
-    if ($scheme) {
-        if (exists $scheme_handlers->{$scheme}) {
-            ($response, $mime_type) = $scheme_handlers->{$scheme}->($uri->as_string);
-        } elsif ($scheme eq 'file') {
-            ($response, $mime_type) = read_file($uri->file);
-        } else {
-            croak 'Unsupported scheme of uri ' . $uri->as_string;
-        }
-    } else {
-        # may it is path of local file without scheme?
-        ($response, $mime_type) = read_file($resource);
-    }
-
-    return ($response, $mime_type);
-}
-
-sub decode_content {
-    my ($response, $mime_type, $resource) = @_;
-
-    my $schema;
-    if ($mime_type) {
-        if ($mime_type =~ m{yaml}) {
-            $schema = eval{ yaml_load($response) };
-            croak "Failed to load resource $resource as $mime_type ( $@ )" if $@;
-        }
-        elsif ($mime_type =~ m{json}) {
-            $schema = eval{ json_decode($response) };
-            croak "Failed to load resource $resource as $mime_type ( $@ )" if $@;
-        }
-    }
-    unless ($schema) {
-        # try to guess
-        $schema = eval { json_decode($response) };
-        $schema = eval { yaml_load($response) } if $@;
-        croak "Unsupported mime type $mime_type of resource $resource" unless $schema;
+    if ($@) {
+        croak(sprintf('Failed to load resource %s as %s: %s', $resource, $content_type, $@)) if $content_type;
+        croak(sprintf('Unsupported type of resource %s', $resource));
     }
 
     return $schema;
 }
 
-sub detect_mime_type_from_path {
+sub get_content {
+    my ($resource, $scheme_handlers) = @_;
+
+    my $uri = URI->new($resource);
+
+    $scheme_handlers //= {};
+    foreach (qw( http https )) {
+        $scheme_handlers->{$_} = \&fetch_file unless exists $scheme_handlers->{$_};
+    }
+
+    my $scheme = $uri->scheme;
+    my ($content_ref, $content_type);
+
+    if ($scheme) {
+        if (exists $scheme_handlers->{$scheme}) {
+            ($content_ref, $content_type) = $scheme_handlers->{$scheme}->($uri->as_string);
+        }
+        elsif ($scheme eq 'file') {
+            ($content_ref, $content_type) = read_file($uri->file);
+        }
+        else {
+            croak('Unsupported scheme of URI ' . $uri->as_string);
+        }
+    }
+    else {
+        # May it is path of local file without scheme?
+        ($content_ref, $content_type) = read_file($resource);
+    }
+
+    return ($content_ref, $content_type);
+}
+
+sub decode_content {
+    my ($content_ref, $content_type) = @_;
+
+    if ($content_type) {
+        return yaml_load($$content_ref) if $content_type eq CONTENT_TYPE_YAML;
+        return json_decode($$content_ref) if $content_type eq CONTENT_TYPE_JSON;
+    }
+
+    # Try to guess.
+    return json_decode($$content_ref);
+    return yaml_load($$content_ref);
+}
+
+sub detect_content_type_from_path {
     my ($path) = @_;
 
-    my (undef, undef, $suffix) = File::Basename::fileparse($path, qw( json yaml yml ));
+    my (undef, undef, $suffix) = File::Basename::fileparse($path, qr/\.[^.]+/);
 
-    return FILE_SUFFIX_TO_MIME_TYPE->{$suffix} if exists FILE_SUFFIX_TO_MIME_TYPE->{$suffix};
+    $suffix = lc($suffix);
+
+    return CONTENT_TYPE_JSON if $suffix eq '.json';
+    return CONTENT_TYPE_YAML if $suffix eq '.yaml';
+    return CONTENT_TYPE_YAML if $suffix eq '.yml';
+    return;
+}
+
+sub detect_content_type_from_content {
+    my ($content_ref) = @_;
+
+    return unless defined $content_ref && defined $$content_ref;
+
+    return CONTENT_TYPE_JSON if $$content_ref =~ /^\s+[\{\[]/;
+    return CONTENT_TYPE_YAML if $$content_ref =~ /^---[\n\r ]/;
+    return CONTENT_TYPE_YAML if $$content_ref =~ /^%YAML [0-9]\.[0-9]+\b/;
     return;
 }
 
@@ -165,24 +187,28 @@ sub fetch_file {
 
     $file->fetch(to => \my $content) or croak($file->error // "Can't fetch file from $uri");
 
-    my $mime_type = detect_mime_type_from_path($file->output_file);
+    my $content_type = detect_content_type_from_path($file->output_file)
+                    || detect_content_type_from_content(\$content);
 
-    return ($content, $mime_type);
+    return (\$content, $content_type);
 }
 
 sub read_file {
-    my $path = shift;
+    my ($path) = @_;
+
     croak "File $path does not exists" unless -e $path;
     croak "File $path does not have read permission" unless -r _;
+
     my $size = -s _;
 
-    open my $fh, '<', $path or croak "Open file $path error: $!";
-    read $fh, (my $file_content), $size;
-    close $fh;
+    open(my $fh, '<', $path) or croak "Open file $path error: $!";
+    read($fh, (my $content), $size);
+    close($fh);
 
-    my $mime_type = detect_mime_type_from_path($path);
+    my $content_type = detect_content_type_from_path($path)
+                    || detect_content_type_from_content(\$content);
 
-    return $file_content, $mime_type;
+    return (\$content, $content_type);
 }
 
 # params: $value, $type, $is_strict

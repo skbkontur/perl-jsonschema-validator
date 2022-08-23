@@ -13,7 +13,7 @@ use URI::Escape;
 use Encode;
 
 use JSONSchema::Validator::JSONPointer 'json_pointer';
-use JSONSchema::Validator::Util qw(get_resource decode_content);
+use JSONSchema::Validator::Util qw( load_schema );
 
 # what keys contain the schema? Required to find an $id in a schema
 my $SEARCH_ID = {
@@ -105,8 +105,7 @@ sub cache_resolve {
 
     return $self->cache->{$uri->as_string} if exists $self->cache->{$uri->as_string};
 
-    my ($response, $mime_type) = get_resource($self->scheme_handlers, $uri->as_string);
-    my $schema = decode_content($response, $mime_type, $uri->as_string);
+    my $schema = load_schema($uri->as_string, $self->scheme_handlers);
 
     $self->cache->{$uri->as_string} = $schema;
 

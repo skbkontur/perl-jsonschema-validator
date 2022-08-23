@@ -8,15 +8,15 @@ use lib 't/lib';
 
 use Helper qw/test_dir detect_warnings/;
 use JSONSchema::Validator;
-use JSONSchema::Validator::Util qw/get_resource decode_content/;
+use JSONSchema::Validator::Util qw( load_schema );
 
 for my $validator_class (@{$JSONSchema::Validator::JSON_SCHEMA_VALIDATORS}, @{$JSONSchema::Validator::OAS_VALIDATORS}) {
     my $specification = lc($validator_class->SPECIFICATION);
     my $glob_file_tests = test_dir("data/json_schema/${specification}/*.json");
     my @file_tests = glob($glob_file_tests);
     for my $file (@file_tests) {
-        my $uri = URI::file->new($file)->as_string;
-        my $tests = decode_content(get_resource({}, $uri), $uri);
+        my $uri = URI::file->new($file);
+        my $tests = load_schema($uri->as_string);
         for my $test (@$tests) {
             my $subtests = $test->{tests};
             for my $t (@$subtests) {
