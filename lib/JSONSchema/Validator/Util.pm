@@ -87,9 +87,9 @@ sub round {
 # scheme_handlers - map[scheme -> handler]
 # uri - string
 sub get_resource {
-    my ($scheme_handlers, $uri) = @_;
+    my ($scheme_handlers, $resource) = @_;
 
-    $uri = URI->new($uri);
+    my $uri = URI->new($resource);
 
     foreach (qw( http https )) {
         $scheme_handlers->{$_} = \&fetch_file unless exists $scheme_handlers->{$_};
@@ -98,12 +98,17 @@ sub get_resource {
     my $scheme = $uri->scheme;
 
     my ($response, $mime_type);
-    if (exists $scheme_handlers->{$scheme}) {
-        ($response, $mime_type) = $scheme_handlers->{$scheme}->($uri->as_string);
-    } elsif ($scheme eq 'file') {
-        ($response, $mime_type) = read_file($uri->file);
+    if ($scheme) {
+        if (exists $scheme_handlers->{$scheme}) {
+            ($response, $mime_type) = $scheme_handlers->{$scheme}->($uri->as_string);
+        } elsif ($scheme eq 'file') {
+            ($response, $mime_type) = read_file($uri->file);
+        } else {
+            croak 'Unsupported scheme of uri ' . $uri->as_string;
+        }
     } else {
-        croak 'Unsupported scheme of uri ' . $uri->as_string;
+        # may it is path of local file without scheme?
+        ($response, $mime_type) = read_file($resource);
     }
 
     return ($response, $mime_type);
@@ -114,14 +119,20 @@ sub decode_content {
 
     my $schema;
     if ($mime_type) {
-        $schema = yaml_load($response) if $mime_type =~ m/yaml/;
-        $schema = json_decode($response) if $mime_type =~ m/json/;
+        if ($mime_type =~ m{yaml}) {
+            $schema = eval{ yaml_load($response) };
+            croak "Failed to load resource $resource as $mime_type ( $@ )" if $@;
+        }
+        elsif ($mime_type =~ m{json}) {
+            $schema = eval{ json_decode($response) };
+            croak "Failed to load resource $resource as $mime_type ( $@ )" if $@;
+        }
     }
     unless ($schema) {
         # try to guess
         $schema = eval { json_decode($response) };
         $schema = eval { yaml_load($response) } if $@;
-        croak "Unsupported mime type $mime_type of resource " . $resource unless $schema;
+        croak "Unsupported mime type $mime_type of resource $resource" unless $schema;
     }
 
     return $schema;
@@ -196,7 +207,10 @@ sub is_array {
 
 # params: $value, $is_strict
 sub is_bool {
-    return 1 if ref $_[0] eq 'JSON::PP::Boolean';
+    my $type = ref $_[0];
+    return 1 if $type eq 'JSON::PP::Boolean' or
+                $type eq 'JSON::XS::Boolean' or
+                $type eq 'Cpanel::JSON::XS::Boolean';
     return 0 if $_[1]; # is strict
     my $is_number = looks_like_number($_[0]) && ($_[0] == 1 || $_[0] == 0);
     my $is_string = defined $_[0] && $_[0] eq '';

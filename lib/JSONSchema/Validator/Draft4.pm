@@ -110,8 +110,10 @@ sub _validate_schema {
 
     my $apply_scope = $params{apply_scope} // 1;
 
+    my $is_exists_ref = exists $schema->{'$ref'};
+
     my $id = $schema->{$self->ID_FIELD};
-    if ($id && $apply_scope && $self->using_id_with_ref) {
+    if ($id && $apply_scope && $self->using_id_with_ref && !$is_exists_ref) {
         my $uri = $id;
         $uri = URI->new($id)->abs($self->scope)->as_string if $self->scope;
         push @{$self->scopes}, $uri;
@@ -126,7 +128,7 @@ sub _validate_schema {
         my $method = $k eq '$ref' ? 'ref' : $k;
         next unless my $constraint = $self->constraints->can($method);
 
-        my $spath = json_pointer->append($schema_path, $k);
+        my $spath = json_pointer->append($schema_path, $k eq '$ref' ? "$k($v)" : $k);
 
         my $r = eval {
             $self->constraints->$constraint($instance, $v, $schema, $instance_path, $spath, $data);
@@ -139,7 +141,7 @@ sub _validate_schema {
         $result = 0 unless $r;
     }
 
-    pop @{$self->scopes} if $id && $apply_scope && $self->using_id_with_ref;
+    pop @{$self->scopes} if $id && $apply_scope && $self->using_id_with_ref && !$is_exists_ref;
     return $result;
 }
 

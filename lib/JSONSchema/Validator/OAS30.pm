@@ -212,7 +212,11 @@ sub _validate_params {
     for my $type (keys %$schema_params) {
         next unless %{$schema_params->{$type}};
         # skip validation if user not specify getter for such params type
-        next unless $get_user_param->{$type};
+        if (not exists $get_user_param->{$type}) {
+            push @{$ctx->{errors}}, error(message => qq{schema specifies '$type' parameters, but '$type' parameter missing in instance data});
+            $result = 0;
+            next;
+        }
         my $r = $self->_validate_type_params($ctx, $type, $schema_params->{$type}, $get_user_param->{$type});
         $result = 0 unless $r;
     }
@@ -244,29 +248,25 @@ sub _validate_type_params {
 
         next unless $data_ptr->xget('schema') || $data_ptr->xget('content');
 
-        $value = [$value] if ref $value ne 'ARRAY';
+        my ($r, $errors, $warnings);
 
-        for my $v (@$value) {
-            my ($r, $errors, $warnings);
-
-            if ($data_ptr->xget('schema')) {
-                my $schema_ptr = $data_ptr->xget('schema');
-                ($r, $errors, $warnings) = $self->validate_schema($v,
-                    schema => $schema_ptr->value,
-                    path => '/',
-                    direction => $ctx->{direction},
-                    scope => $schema_ptr->scope
-                );
-            } elsif ($data_ptr->xget('content')) {
-                ($r, $errors, $warnings) = $self->_validate_content($ctx, $data_ptr, undef, $v);
-            }
-
-            unless ($r) {
-                push @{$ctx->{errors}}, error(message => qq{$type param "$param" has error}, context => $errors);
-                $result = 0;
-            }
-            push @{$ctx->{warnings}}, error(message => qq{$type param "$param" has warning}, context => $warnings) if @$warnings;
+        if ($data_ptr->xget('schema')) {
+            my $schema_ptr = $data_ptr->xget('schema');
+            ($r, $errors, $warnings) = $self->validate_schema($value,
+                schema => $schema_ptr->value,
+                path => '/',
+                direction => $ctx->{direction},
+                scope => $schema_ptr->scope
+            );
+        } elsif ($data_ptr->xget('content')) {
+            ($r, $errors, $warnings) = $self->_validate_content($ctx, $data_ptr, undef, $value);
         }
+
+        unless ($r) {
+            push @{$ctx->{errors}}, error(message => qq{$type param "$param" has error}, context => $errors);
+            $result = 0;
+        }
+        push @{$ctx->{warnings}}, error(message => qq{$type param "$param" has warning}, context => $warnings) if @$warnings;
     }
 
     return $result;
@@ -286,25 +286,57 @@ sub _validate_content {
     if ($content_type) {
         $ctype_ptr = $content_ptr->xget($content_type);
         unless ($ctype_ptr) {
-            return 0, [error(message => qq{content with content-type $content_type is omit in schema})], [];
+            return 0, [error(message => qq{content with content-type $content_type is not in schema})], [];
         }
     } else {
         my $mtype_map = $content_ptr->value;
         my @keys = $content_ptr->keys(raw => 1);
-        return 0, [error(message => qq{schema has more than one content_type})], [] if scalar(@keys) > 1;
+        return 0, [error(message => qq{content type not specified; schema must have exactly one content_type})], [] unless scalar(@keys) == 1;
 
         $content_type = $keys[0];
         $ctype_ptr = $content_ptr->xget($content_type);
     }
 
     unless (ref $data) {
-        if ($content_type eq 'application/json') {
-            $data = json_decode($data);
+        if (index($content_type, 'application/json') != -1) {
+            eval { $data = json_decode($data); };
         }
-        # need to support other content-type?
+        # do we need to support other content-type?
     }
 
     my $schema_ptr = $ctype_ptr->xget('schema');
+    my $schema_prop_ptr = $schema_ptr->xget('properties');
+
+    if (
+        $schema_prop_ptr &&
+        $content_type &&
+        (
+            index($content_type ,'application/x-www-form-urlencoded') != -1 ||
+            index($content_type, 'multipart/') != -1
+        ) &&
+        ref $data eq 'HASH'
+    ) {
+        for my $property_name ($schema_prop_ptr->keys(raw => 1)) {
+            my $property_ctype_ptr = $ctype_ptr->xget('encoding', $property_name, 'contentType');
+            my $property_ctype = $property_ctype_ptr ? $property_ctype_ptr->value : '';
+            unless ($property_ctype) {
+                my $prop_type_ptr = $schema_prop_ptr->xget($property_name, 'type');
+                $property_ctype = $prop_type_ptr && $prop_type_ptr->value eq 'object' ? 'application/json' : '';
+            }
+
+            if (
+                index($property_ctype, 'application/json') != -1 &&
+                exists $data->{$property_name} &&
+                !ref $data->{$property_name}
+            ) {
+                eval {
+                    $data->{$property_name} = json_decode($data->{$property_name});
+                };
+            }
+            # do we need to support other content-type?
+        }
+    }
+
     return $self->validate_schema($data,
         schema => $schema_ptr->value,
         path => '/',
