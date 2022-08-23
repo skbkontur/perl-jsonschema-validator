@@ -212,7 +212,11 @@ sub _validate_params {
     for my $type (keys %$schema_params) {
         next unless %{$schema_params->{$type}};
         # skip validation if user not specify getter for such params type
-        next unless $get_user_param->{$type};
+        if (not exists $get_user_param->{$type}) {
+            push @{$ctx->{errors}}, error(message => qq{schema specifies '$type' parameters, but '$type' parameter missing in instance data});
+            $result = 0;
+            next;
+        }
         my $r = $self->_validate_type_params($ctx, $type, $schema_params->{$type}, $get_user_param->{$type});
         $result = 0 unless $r;
     }
