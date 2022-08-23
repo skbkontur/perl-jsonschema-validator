@@ -38,31 +38,33 @@ Creates one of the following validators: JSONSchema::Validator::Draft4, JSONSche
 if parameter C<specification> is not specified then type of validator will be determined by C<$schema> key
 for JSON Schema Draft4/Draft6/Draft7 and by C<openapi> key for OpenAPI Specification 3.0 in C<schema> parameter.
 
-=head3 Parameters
+Parameters:
 
-=head4 resources
+=over 1 
+
+=item resources
 
 To get schema by uri
 
-=head4 schema
+=item schema
 
 To get explicitly specified schema
 
-=head4 specification
+=item specification
 
 To specify specification of schema
 
-=head4 validate_schema
+=item validate_schema
 
 Do not validate specified schema
 
-=head4 base_uri
+=item base_uri
 
 To specify base uri of schema.
 This parameter used to build absolute path by relative reference in schema.
 By default C<base_uri> is equal to the resource path if the resource parameter is specified otherwise the C<$id> key in the schema.
 
-=head3 Additional parameters
+=back
 
 Additional parameters need to be looked at in a specific validator class.
 Currently there are validators: JSONSchema::Validator::Draft4, JSONSchema::Validator::Draft6, JSONSchema::Validator::Draft7, JSONSchema::Validator::OAS30.
