@@ -161,8 +161,8 @@ sub validate_resource_schema {
 
 sub read_specification {
     my $filename = shift;
-    my $curret_filepath = __FILE__;
-    my $schema_filepath = 'file:///' . ($curret_filepath =~ s/\.pm$//r) . '/schemas/' . lc($filename) . '.json';
+    my $current_filepath = __FILE__;
+    my $schema_filepath = 'file://' . ($current_filepath =~ s/\.pm$//r) . '/schemas/' . lc($filename) . '.json';
     return load_schema($schema_filepath);
 }
 

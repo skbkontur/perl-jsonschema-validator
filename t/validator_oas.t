@@ -14,13 +14,13 @@ for my $validator_class (@{$JSONSchema::Validator::OAS_VALIDATORS}) {
     my $version = lc($validator_class->SPECIFICATION);
 
     my $resource = 'file://' . test_dir("/data/validator_oas/${version}-schema.json");
-    my $instance_file_ok = test_dir("/data/validator_oas/${version}-ok.json");
-    my $instance_file_wrong = test_dir("/data/validator_oas/${version}-wrong.json");
+    my $instance_file_ok = 'file://' . test_dir("/data/validator_oas/${version}-ok.json");
+    my $instance_file_wrong = 'file://' . test_dir("/data/validator_oas/${version}-wrong.json");
 
     my $instance_ok = load_schema($instance_file_ok);
     my $instance_wrong = load_schema($instance_file_wrong);
 
-    my $schema_file = test_dir("/data/validator_oas/${version}-schema.json");
+    my $schema_file = 'file://' . test_dir("/data/validator_oas/${version}-schema.json");
     my $schema = load_schema($schema_file);
 
     my @validators = (

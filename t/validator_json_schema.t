@@ -14,8 +14,8 @@ for my $validator_class (@{$JSONSchema::Validator::JSON_SCHEMA_VALIDATORS}) {
     my $draft = lc($validator_class->SPECIFICATION);
     # data/validator_json_schema/$draft-1-schema.json
     my $resource = 'file://' . test_dir("/data/validator_json_schema/${draft}-1-schema.json");
-    my $instance_file_ok = test_dir("/data/validator_json_schema/${draft}-1-ok.json");
-    my $instance_file_wrong = test_dir("/data/validator_json_schema/${draft}-1-wrong.json");
+    my $instance_file_ok = 'file://' . test_dir("/data/validator_json_schema/${draft}-1-ok.json");
+    my $instance_file_wrong = 'file://' . test_dir("/data/validator_json_schema/${draft}-1-wrong.json");
 
     my $instance_ok = load_schema($instance_file_ok);
     my $instance_wrong = load_schema($instance_file_wrong);
@@ -30,7 +30,7 @@ for my $validator_class (@{$JSONSchema::Validator::JSON_SCHEMA_VALIDATORS}) {
     is $result, 0, "check validation $instance_file_wrong";
     ok @$errors > 0, "check validation errors $instance_file_wrong";
 
-    my $schema_file = test_dir("/data/validator_json_schema/${draft}-1-schema.json");
+    my $schema_file = 'file://' . test_dir("/data/validator_json_schema/${draft}-1-schema.json");
     my $schema = load_schema($schema_file);
 
     ## with schema and without specification
@@ -46,8 +46,8 @@ for my $validator_class (@{$JSONSchema::Validator::JSON_SCHEMA_VALIDATORS}) {
 
     # data/validator_json_schema/$draft-2-schema.json
     $resource = 'file://' . test_dir("/data/validator_json_schema/${draft}-2-schema.json");
-    $instance_file_ok = test_dir("/data/validator_json_schema/${draft}-2-ok.json");
-    $instance_file_wrong = test_dir("/data/validator_json_schema/${draft}-2-wrong.json");
+    $instance_file_ok = 'file://' . test_dir("/data/validator_json_schema/${draft}-2-ok.json");
+    $instance_file_wrong = 'file://' . test_dir("/data/validator_json_schema/${draft}-2-wrong.json");
 
     $instance_ok = load_schema($instance_file_ok);
     $instance_wrong = load_schema($instance_file_wrong);
@@ -68,7 +68,7 @@ for my $validator_class (@{$JSONSchema::Validator::JSON_SCHEMA_VALIDATORS}) {
     is $result, 0, "check validation $instance_file_wrong";
     ok @$errors > 0, "check validation errors $instance_file_wrong";
 
-    $schema_file = test_dir("/data/validator_json_schema/${draft}-2-schema.json");
+    $schema_file = 'file://' . test_dir("/data/validator_json_schema/${draft}-2-schema.json");
     $schema = load_schema($schema_file);
 
     ## with schema and without specification
