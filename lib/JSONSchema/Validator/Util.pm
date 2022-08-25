@@ -9,12 +9,12 @@ use B ();
 use Carp 'croak';
 use File::Basename ();
 use File::Fetch ();
-use Scalar::Util 'looks_like_number';
+use Scalar::Util qw( blessed looks_like_number );
 use URI 1.00 ();
 
 our @ISA = 'Exporter';
 our @EXPORT_OK = qw(
-    json_encode json_decode user_agent_get serialize unbool
+    json_encode json_decode serialize unbool
     round is_type detect_type
     data_section load_schema
 );
@@ -103,33 +103,26 @@ sub load_schema {
 sub get_content {
     my ($resource, $scheme_handlers) = @_;
 
-    my $uri = URI->new($resource);
+    my $uri = blessed($resource) && $resource->isa('URI') ? $resource : URI->new($resource);
 
-    $scheme_handlers //= {};
-    foreach (qw( http https )) {
-        $scheme_handlers->{$_} = \&fetch_file unless exists $scheme_handlers->{$_};
-    }
-
-    my $scheme = $uri->scheme;
-    my ($content_ref, $content_type);
-
-    if ($scheme) {
-        if (exists $scheme_handlers->{$scheme}) {
-            ($content_ref, $content_type) = $scheme_handlers->{$scheme}->($uri->as_string);
-        }
-        elsif ($scheme eq 'file') {
-            ($content_ref, $content_type) = read_file($uri->file);
-        }
-        else {
-            croak(sprintf('Unsupported scheme %s of URI %s', $scheme, $uri->as_string));
+    if ($uri->has_recognized_scheme) {
+        if (my $scheme = $uri->scheme) {
+            $scheme_handlers //= {};
+            if (exists $scheme_handlers->{$scheme}) {
+                return $scheme_handlers->{$scheme}->($uri);
+            }
+            elsif ($scheme eq 'http' || $scheme eq 'https') {
+                return fetch_file($uri->canonical->as_string);
+            }
+            elsif ($scheme eq 'file') {
+                return read_file($uri->file);
+            }
+            croak(sprintf('Unsupported scheme "%s" of URI %s', $scheme // '', $uri->as_string));
         }
     }
-    else {
-        # May it is path of local file without scheme?
-        ($content_ref, $content_type) = read_file($resource);
-    }
 
-    return ($content_ref, $content_type);
+    # May it is path of local file without scheme?
+    return read_file("$resource");
 }
 
 sub decode_content {
