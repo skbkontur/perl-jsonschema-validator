@@ -17,7 +17,7 @@ for my $validator_class (@{$JSONSchema::Validator::OAS_VALIDATORS}) {
     my @file_tests = glob($glob_file_tests);
     for my $file (@file_tests) {
         my $uri = URI::file->new($file);
-        my $tests = load_schema($uri->as_string);
+        my $tests = load_schema($uri);
 
         for my $test (@$tests) {
             my $test_topic = $test->{subject};
