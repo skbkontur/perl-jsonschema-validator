@@ -14,7 +14,7 @@ use JSONSchema::Validator::Draft7;
 use JSONSchema::Validator::OAS30;
 use JSONSchema::Validator::Util qw(get_resource decode_content read_file);
 
-our $VERSION = '0.010';
+our $VERSION = '0.011';
 
 my $SPECIFICATIONS = {
     JSONSchema::Validator::OAS30::ID => JSONSchema::Validator::OAS30::SPECIFICATION,
@@ -40,7 +40,7 @@ for JSON Schema Draft4/Draft6/Draft7 and by C<openapi> key for OpenAPI Specifica
 
 Parameters:
 
-=over 1 
+=over 1
 
 =item resources
 
