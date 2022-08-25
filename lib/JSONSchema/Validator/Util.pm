@@ -133,9 +133,13 @@ sub decode_content {
         return json_decode($$content_ref) if $content_type eq CONTENT_TYPE_JSON;
     }
 
+    my $schema;
+
     # Try to guess.
-    return json_decode($$content_ref);
-    return yaml_load($$content_ref);
+    $schema = eval { json_decode($$content_ref) };
+    $schema = yaml_load($$content_ref) if $@;
+
+    return $schema;
 }
 
 sub detect_content_type_from_path {
