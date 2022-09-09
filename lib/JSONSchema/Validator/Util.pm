@@ -5,25 +5,22 @@ package JSONSchema::Validator::Util;
 use strict;
 use warnings;
 
-use URI 1.00;
-use File::Basename;
-use B;
+use B ();
 use Carp 'croak';
-
-use Scalar::Util 'looks_like_number';
+use File::Basename ();
+use File::Fetch ();
+use Scalar::Util qw( blessed looks_like_number );
+use URI 1.00 ();
 
 our @ISA = 'Exporter';
 our @EXPORT_OK = qw(
-    json_encode json_decode user_agent_get serialize unbool
-    round read_file is_type detect_type get_resource decode_content
-    data_section
+    json_encode json_decode serialize unbool
+    round is_type detect_type
+    data_section load_schema
 );
 
-use constant FILE_SUFFIX_TO_MIME_TYPE => {
-    'yaml' => 'text/vnd.yaml',
-    'yml' => 'text/vnd.yaml',
-    'json' => 'application/json'
-};
+use constant CONTENT_TYPE_JSON => 'JSON';
+use constant CONTENT_TYPE_YAML => 'YAML';
 
 use constant TYPE_MAP => {
     'array' => \&is_array,
@@ -66,31 +63,6 @@ BEGIN {
     my $json = $json_class->new->canonical(1)->utf8;
     *json_encode = sub { $json->encode(@_); };
     *json_decode = sub { $json->decode(@_); };
-
-    # UserAgent
-    if (eval { require LWP::UserAgent; 1; }) {
-        my $ua = LWP::UserAgent->new;
-        *user_agent_get = sub {
-            my $uri = shift;
-            my $response = $ua->get($uri);
-            if ($response->is_success) {
-                return $response->decoded_content, $response->headers->content_type;
-            }
-            croak "Can not get uri $uri";
-        };
-    } elsif (eval { require Mojo::UserAgent; 1; }) {
-        my $ua = Mojo::UserAgent->new;
-        *user_agent_get = sub {
-            my $uri = shift;
-            my $response = $ua->get($uri)->result;
-            if ($response->is_success) {
-                return $response->body, $response->headers->content_type;
-            }
-            croak "Can not get uri $uri";
-        };
-    } else {
-        *user_agent_get = sub { croak 'No UserAgent package installed' };
-    }
 }
 
 sub unbool {
@@ -109,74 +81,131 @@ sub round {
     return int($value + ($value >= 0 ? 0.5 : -0.5));
 }
 
-# scheme_handlers - map[scheme -> handler]
-# uri - string
-sub get_resource {
-    my ($scheme_handlers, $resource) = @_;
-    my $uri = URI->new($resource);
+sub load_schema {
+    my ($resource, $scheme_handlers) = @_;
 
-    for my $s ('http', 'https') {
-        $scheme_handlers->{$s} = \&user_agent_get unless exists $scheme_handlers->{$s};
+    my ($content_ref, $content_type) = eval { get_content($resource, $scheme_handlers) };
+
+    if ($@) {
+        croak(sprintf('Failed to load resource %s: %s', $resource, $@));
     }
 
-    my $scheme = $uri->scheme;
+    my $schema = eval { decode_content($content_ref, $content_type) };
 
-    my ($response, $mime_type);
-    if ($scheme) {
-        if (exists $scheme_handlers->{$scheme}) {
-            ($response, $mime_type) = $scheme_handlers->{$scheme}->($uri->as_string);
-        } elsif ($scheme eq 'file') {
-            ($response, $mime_type) = read_file($uri->file);
-        } else {
-            croak 'Unsupported scheme of uri ' . $uri->as_string;
-        }
-    } else {
-        # may it is path of local file without scheme?
-        ($response, $mime_type) = read_file($resource);
-    }
-    return ($response, $mime_type);
-}
-
-sub decode_content {
-    my ($response, $mime_type, $resource) = @_;
-
-    my $schema;
-    if ($mime_type) {
-        if ($mime_type =~ m{yaml}) {
-            $schema = eval{ yaml_load($response) };
-            croak "Failed to load resource $resource as $mime_type ( $@ )" if $@;
-        }
-        elsif ($mime_type =~ m{json}) {
-            $schema = eval{ json_decode($response) };
-            croak "Failed to load resource $resource as $mime_type ( $@ )" if $@;
-        }
-    }
-    unless ($schema) {
-        # try to guess
-        $schema = eval { json_decode($response) };
-        $schema = eval { yaml_load($response) } if $@;
-        croak "Unsupported mime type $mime_type of resource $resource" unless $schema;
+    if ($@) {
+        croak(sprintf('Failed to load resource %s as %s: %s', $resource, $content_type, $@)) if $content_type;
+        croak(sprintf('Unsupported type of resource %s', $resource));
     }
 
     return $schema;
 }
 
+sub get_content {
+    my ($resource, $scheme_handlers) = @_;
+
+    my $uri = blessed($resource) && $resource->isa('URI') ? $resource : URI->new($resource);
+
+    if ($uri->has_recognized_scheme) {
+        if (my $scheme = $uri->scheme) {
+            $scheme_handlers //= {};
+            if (exists $scheme_handlers->{$scheme}) {
+                return $scheme_handlers->{$scheme}->($uri);
+            }
+            elsif ($scheme eq 'http' || $scheme eq 'https') {
+                return fetch_file($uri->canonical->as_string);
+            }
+            elsif ($scheme eq 'file') {
+                return read_file($uri->file);
+            }
+            croak(sprintf('Unsupported scheme "%s" of URI %s', $scheme // '', $uri->as_string));
+        }
+    }
+
+    # May it is path of local file without scheme?
+    return read_file("$resource");
+}
+
+sub decode_content {
+    my ($content_ref, $content_type) = @_;
+
+    if ($content_type) {
+        return yaml_load($$content_ref) if $content_type eq CONTENT_TYPE_YAML;
+        return json_decode($$content_ref) if $content_type eq CONTENT_TYPE_JSON;
+    }
+
+    my $schema;
+
+    # Try to guess.
+    $schema = eval { json_decode($$content_ref) };
+    $schema = yaml_load($$content_ref) if $@;
+
+    return $schema;
+}
+
+sub detect_content_type_from_path {
+    my ($path) = @_;
+
+    my (undef, undef, $suffix) = File::Basename::fileparse($path, qr/\.[^.]+/);
+
+    $suffix = lc($suffix);
+
+    return CONTENT_TYPE_JSON if $suffix eq '.json';
+    return CONTENT_TYPE_YAML if $suffix eq '.yaml';
+    return CONTENT_TYPE_YAML if $suffix eq '.yml';
+    return;
+}
+
+sub detect_content_type_from_content {
+    my ($content_ref) = @_;
+
+    return unless defined $content_ref && defined $$content_ref;
+
+    return CONTENT_TYPE_JSON if $$content_ref =~ /^\s+[\{\[]/;
+    return CONTENT_TYPE_YAML if $$content_ref =~ /^---[\n\r ]/;
+    return CONTENT_TYPE_YAML if $$content_ref =~ /^%YAML [0-9]\.[0-9]+\b/;
+    return;
+}
+
+sub fetch_file {
+    my ($uri) = @_;
+
+    my $file = File::Fetch->new(uri => $uri) or croak(File::Fetch->error);
+
+    # Try to patch File::Fetch < 0.50 to support HTTPS scheme.
+    if ($file->scheme eq 'https' && !exists $File::Fetch::METHODS->{https}) {
+        require version;
+        if (version->parse(File::Fetch->VERSION) < version->parse('0.50')) {
+            $File::Fetch::METHODS->{https} = [
+                eval { require LWP::Protocol::https } ? 'lwp' : (),
+                qw( wget curl ),
+            ];
+        }
+    }
+
+    $file->fetch(to => \my $content) or croak($file->error // "Can't fetch file from $uri");
+
+    my $content_type = detect_content_type_from_path($file->output_file)
+                    || detect_content_type_from_content(\$content);
+
+    return (\$content, $content_type);
+}
+
 sub read_file {
-    my $path = shift;
+    my ($path) = @_;
+
     croak "File $path does not exists" unless -e $path;
     croak "File $path does not have read permission" unless -r _;
+
     my $size = -s _;
 
-    my ($filename, $dir, $suffix) = File::Basename::fileparse($path, 'yml', 'yaml', 'json');
-    croak "Unknown file format of $path" unless $suffix;
+    open(my $fh, '<', $path) or croak "Open file $path error: $!";
+    read($fh, (my $content), $size);
+    close($fh);
 
-    my $mime_type = FILE_SUFFIX_TO_MIME_TYPE->{$suffix};
+    my $content_type = detect_content_type_from_path($path)
+                    || detect_content_type_from_content(\$content);
 
-    open my $fh, '<', $path or croak "Open file $path error: $!";
-    read $fh, (my $file_content), $size;
-    close $fh;
-
-    return $file_content, $mime_type;
+    return (\$content, $content_type);
 }
 
 # params: $value, $type, $is_strict

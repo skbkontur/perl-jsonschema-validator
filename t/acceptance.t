@@ -9,7 +9,7 @@ use lib 't/lib';
 
 use Helper 'detect_warnings';
 use JSONSchema::Validator;
-use JSONSchema::Validator::Util qw/get_resource/;
+use JSONSchema::Validator::Util ();
 
 BEGIN {
     unless ($ENV{ACCEPTANCE_TESTING}) {
@@ -30,7 +30,7 @@ for my $validator_class (@{$JSONSchema::Validator::JSON_SCHEMA_VALIDATORS}) {
         my $uri = shift;
         my $path = $accepter->additional_resources;
         $uri =~ s/^http:\/\/localhost:1234/file:\/\/$path/;
-        return get_resource({}, $uri);
+        return JSONSchema::Validator::Util::get_content($uri);
     };
 
     $accepter->acceptance(

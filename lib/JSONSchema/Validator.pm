@@ -12,7 +12,7 @@ use JSONSchema::Validator::Draft4;
 use JSONSchema::Validator::Draft6;
 use JSONSchema::Validator::Draft7;
 use JSONSchema::Validator::OAS30;
-use JSONSchema::Validator::Util qw(get_resource decode_content read_file);
+use JSONSchema::Validator::Util qw( load_schema );
 
 our $VERSION = '0.011';
 
@@ -80,7 +80,7 @@ sub new {
     my $base_uri = delete $params{base_uri};
     my $specification = delete $params{specification};
 
-    $schema = resource_schema($resource, \%params) if !$schema && $resource;
+    $schema = load_schema($resource, $params{scheme_handlers}) if !$schema && $resource;
     croak 'resource or schema must be specified' unless defined $schema;
 
     my $validator_class = find_validator($specification // schema_specification($schema));
@@ -130,7 +130,7 @@ sub validate_paths {
 
 sub validate_resource {
     my ($class, $resource, %params) = @_;
-    my $schema_to_validate = resource_schema($resource, \%params);
+    my $schema_to_validate = load_schema($resource, $params{scheme_handlers});
 
     my $validator_class = find_validator(schema_specification($schema_to_validate));
     croak "unknown specification of resource $resource" unless $validator_class;
@@ -161,17 +161,8 @@ sub validate_resource_schema {
 
 sub read_specification {
     my $filename = shift;
-    my $curret_filepath = __FILE__;
-    my $schema_filepath = ($curret_filepath =~ s/\.pm$//r) . '/schemas/' . lc($filename) . '.json';
-    my ($content, $mime_type) = read_file($schema_filepath);
-    return decode_content($content, $mime_type, $schema_filepath);
-}
-
-sub resource_schema {
-    my ($resource, $params) = @_;
-    my ($response, $mime_type) = get_resource($params->{scheme_handlers}, $resource);
-    my $schema = decode_content($response, $mime_type, $resource);
-    return $schema;
+    my $schema_filepath = URI::file->new_abs((__FILE__ =~ s/\.pm$//r) . '/schemas/' . lc($filename) . '.json');
+    return load_schema($schema_filepath);
 }
 
 sub find_validator {

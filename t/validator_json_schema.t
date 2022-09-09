@@ -8,7 +8,7 @@ use lib 't/lib';
 
 use Helper qw/test_dir detect_warnings/;
 use JSONSchema::Validator;
-use JSONSchema::Validator::Util qw/read_file decode_content/;
+use JSONSchema::Validator::Util qw( load_schema );
 
 for my $validator_class (@{$JSONSchema::Validator::JSON_SCHEMA_VALIDATORS}) {
     my $draft = lc($validator_class->SPECIFICATION);
@@ -17,8 +17,8 @@ for my $validator_class (@{$JSONSchema::Validator::JSON_SCHEMA_VALIDATORS}) {
     my $instance_file_ok = test_dir("/data/validator_json_schema/${draft}-1-ok.json");
     my $instance_file_wrong = test_dir("/data/validator_json_schema/${draft}-1-wrong.json");
 
-    my $instance_ok = decode_content(read_file($instance_file_ok), $instance_file_ok);
-    my $instance_wrong = decode_content(read_file($instance_file_wrong), $instance_file_wrong);
+    my $instance_ok = load_schema($instance_file_ok);
+    my $instance_wrong = load_schema($instance_file_wrong);
 
     my $validator = JSONSchema::Validator->new(resource => $resource);
 
@@ -31,7 +31,7 @@ for my $validator_class (@{$JSONSchema::Validator::JSON_SCHEMA_VALIDATORS}) {
     ok @$errors > 0, "check validation errors $instance_file_wrong";
 
     my $schema_file = test_dir("/data/validator_json_schema/${draft}-1-schema.json");
-    my $schema = decode_content(read_file($schema_file), $schema_file);
+    my $schema = load_schema($schema_file);
 
     ## with schema and without specification
     $validator = JSONSchema::Validator->new(schema => $schema);
@@ -49,8 +49,8 @@ for my $validator_class (@{$JSONSchema::Validator::JSON_SCHEMA_VALIDATORS}) {
     $instance_file_ok = test_dir("/data/validator_json_schema/${draft}-2-ok.json");
     $instance_file_wrong = test_dir("/data/validator_json_schema/${draft}-2-wrong.json");
 
-    $instance_ok = decode_content(read_file($instance_file_ok), $instance_file_ok);
-    $instance_wrong = decode_content(read_file($instance_file_wrong), $instance_file_wrong);
+    $instance_ok = load_schema($instance_file_ok);
+    $instance_wrong = load_schema($instance_file_wrong);
 
     ## without specification
     $result = eval { $validator = JSONSchema::Validator->new(resource => $resource) };
@@ -69,7 +69,7 @@ for my $validator_class (@{$JSONSchema::Validator::JSON_SCHEMA_VALIDATORS}) {
     ok @$errors > 0, "check validation errors $instance_file_wrong";
 
     $schema_file = test_dir("/data/validator_json_schema/${draft}-2-schema.json");
-    $schema = decode_content(read_file($schema_file), $schema_file);
+    $schema = load_schema($schema_file);
 
     ## with schema and without specification
     $result = eval { $validator = JSONSchema::Validator->new(schema => $schema) };
